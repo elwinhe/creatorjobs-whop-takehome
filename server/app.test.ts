@@ -310,25 +310,39 @@ describe('listing checkout', () => {
 })
 
 describe('Whop webhook reliability', () => {
-  test('applies a signed payment once and marks a replay duplicate', async () => {
+  test('moves checkout order from pending_payment to paid', async () => {
     const repository = new MemoryRepository()
     const fake = gateway()
     const { app, flush } = testApp(repository, fake.whop)
     const body = JSON.stringify({
-      api_version: 'v1', company_id: 'biz_platform', data: { id: 'pay_test', metadata: { order_id: orderId }, user: { id: 'user_test' } }, id: 'msg_1', timestamp: new Date().toISOString(), type: 'payment.succeeded',
+      api_version: 'v1', company_id: 'biz_platform', data: { id: 'pay_test', metadata: { order_id: orderId }, user: { id: 'user_test' } }, id: 'msg_paid', timestamp: new Date().toISOString(), type: 'payment.succeeded',
     })
 
-    const first = await app.fetch(signedRequest(fake.rawSecret, 'msg_1', body))
-    expect(first.status).toBe(200)
+    const response = await app.fetch(signedRequest(fake.rawSecret, 'msg_paid', body))
+    expect(response.status).toBe(200)
     await flush()
     expect(repository.orderStatus).toBe('paid')
     expect(repository.events).toHaveLength(1)
     expect(repository.events[0]?.applied).toBe(true)
+    expect(repository.webhooks.get('msg_paid')?.status).toBe('processed')
+  })
 
-    const replay = await app.fetch(signedRequest(fake.rawSecret, 'msg_1', body))
+  test('marks replay duplicate without a second transition', async () => {
+    const repository = new MemoryRepository()
+    const fake = gateway()
+    const { app, flush } = testApp(repository, fake.whop)
+    const body = JSON.stringify({
+      data: { id: 'pay_replay', metadata: { order_id: orderId } }, id: 'msg_replay', type: 'payment.succeeded',
+    })
+
+    expect((await app.fetch(signedRequest(fake.rawSecret, 'msg_replay', body))).status).toBe(200)
+    await flush()
+    expect(repository.events).toHaveLength(1)
+
+    const replay = await app.fetch(signedRequest(fake.rawSecret, 'msg_replay', body))
     expect(await replay.json()).toEqual({ accepted: true, duplicate: true })
     expect(repository.events).toHaveLength(1)
-    expect(repository.webhooks.get('msg_1')?.status).toBe('duplicate')
+    expect(repository.webhooks.get('msg_replay')?.status).toBe('duplicate')
   })
 
   test('rejects a tampered payload before persistence', async () => {
