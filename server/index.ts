@@ -5,13 +5,17 @@ import { formatEnvError, parseServerEnv } from './env.ts'
 import { PostgresMarketplaceRepository } from './repository.ts'
 import { createWhopGateway } from './whop.ts'
 
-export function createRuntime(source: NodeJS.ProcessEnv = process.env) {
+export function createRuntime(
+  source: NodeJS.ProcessEnv = process.env,
+  options: { defer?: (task: Promise<void>) => void } = {},
+) {
   const env = parseServerEnv(source)
   const database = createDatabase(env.DATABASE_URL)
   const repository = new PostgresMarketplaceRepository(database)
   const whop = createWhopGateway(database, env)
   const app = createMarketplaceApp({
     appBaseUrl: env.APP_BASE_URL,
+    defer: options.defer,
     environment: env.NODE_ENV,
     platformCompanyId: env.WHOP_COMPANY_ID,
     repository,

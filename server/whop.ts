@@ -1,4 +1,4 @@
-import Whop, { APIError } from '@whop/sdk'
+import Whop, { APIError, type APIPromise } from '@whop/sdk'
 import type { Database } from './db.ts'
 import type { ServerEnv } from './env.ts'
 
@@ -79,11 +79,16 @@ export function createWhopGateway(sql: Database, env: ServerEnv): WhopGateway {
     `
   }
 
-  async function logged<T>(method: string, path: string, request: () => Promise<T>): Promise<T> {
+  async function logged<T>(method: string, path: string, request: () => APIPromise<T>): Promise<T> {
     try {
-      const response = await request()
-      await record({ method, path, statusCode: method === 'POST' ? 201 : 200 })
-      return response
+      const { data, response } = await request().withResponse()
+      await record({
+        method,
+        path,
+        statusCode: response.status,
+        whopRequestId: response.headers.get('x-request-id') ?? response.headers.get('request-id') ?? undefined,
+      })
+      return data
     } catch (error) {
       try {
         await record({ method, path, ...errorEvidence(error) })
