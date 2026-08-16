@@ -1,10 +1,24 @@
-# Deferred live gates
+# Live gate status and remaining checks
 
-CreatorJobs is code-complete against mocked Whop boundaries, but this implementation run had
-no `DATABASE_URL`, Whop sandbox credentials, or webhook secret. Run these checks later with
-secrets in an ignored `.env.local`; never paste credentials into commands or commit them.
+The hosted database checks and credential-free contracts have passed. Whop sandbox and Vercel
+credentials were unavailable, so no live Whop or deployment result is claimed. Keep any future
+credentials in an ignored `.env.local`; never paste them into commands or commit them.
 
-## C0 — local runtime and database health
+| Gate | Evidence status |
+| --- | --- |
+| C0 | Passed: `/api/health` reported database health against the isolated hosted Postgres database. |
+| C1 | Passed twice: migration and seed reran idempotently; counts were `users=5`, `seller_profiles=2`, `listings=3`, and `orders`, `submissions`, `payouts`, `webhook_events`, `order_events`, `api_request_log` all `0`. |
+| C2 | Automated contract passes; live connected account, real `biz_…` ID, and hosted KYC link unverified. |
+| C3 | Automated contract passes; live hosted checkout unverified. |
+| C4 | Automated signature, duplicate, and out-of-order contracts pass; live webhook registration and deliveries unverified. |
+| C5 | Automated lifecycle, failure-evidence, and concurrent payout-claim contracts pass; live transfer unverified. |
+| C6 | Automated database-only dashboard contract passes. |
+| C7 | Vercel routing/build contracts pass; deployment remains unverified. |
+
+## C0 — hosted database health (passed)
+
+The health endpoint passed against the intended isolated hosted database. For a future
+environment recheck:
 
 1. Copy `.env.example` to `.env.local` and fill all required values with sandbox/isolated
    resources. Keep `WHOP_API_VERSION=2026-07-20`.
@@ -12,7 +26,10 @@ secrets in an ignored `.env.local`; never paste credentials into commands or com
 3. Run `curl --fail --silent http://localhost:3001/api/health`. Confirm `ok` and `db` are
    both `true`; stop if the database is not the intended isolated instance.
 
-## C1 — hosted Postgres migration and seed
+## C1 — hosted Postgres migration and seed (passed twice)
+
+The migration and deterministic seed completed twice. The verified counts were `5, 2, 3,
+0, 0, 0, 0, 0, 0` in the query order below. For a future rerun:
 
 1. Export the values from `.env.local` into the shell used for the commands.
 2. Run `bun run migrate && bun run seed` against a fresh Supabase Postgres database.
@@ -73,8 +90,8 @@ secrets in an ignored `.env.local`; never paste credentials into commands or com
    if available). Confirm the order stays `paid` and a linked `order_events` row records
    `applied=false`.
 
-The credential-free equivalent of all four cases is `bun test server/app.test.ts`; those
-tests sign crafted payloads with a test-only secret and use the real Whop SDK verifier.
+The credential-free equivalent of all four cases passes in `bun test server/app.test.ts`;
+those tests sign crafted payloads with a test-only secret and use the real Whop SDK verifier.
 
 ## C5 — lifecycle and transfer
 
@@ -93,6 +110,9 @@ webhook or asynchronous status field. CreatorJobs therefore retrieves the create
 as its reconciliation fallback; re-check the pinned API version before the live pass and
 document any newly available Experimental event rather than silently switching to Stable.
 
+The automated payout suite also issues two approvals concurrently and verifies that the
+persisted `pending → processing` claim permits exactly one outbound transfer call.
+
 ## C6 — database-only operations dashboard
 
 1. After the C4 and C5 scenarios, open `http://localhost:5173/dashboard`.
@@ -102,3 +122,11 @@ document any newly available Experimental event rather than silently switching t
    dashboard refresh still succeeds; only account-link regeneration should call Whop.
 4. Select **Link** for a connected seller and confirm a fresh hosted onboarding URL opens
    and the seller row remains the same.
+
+## C7 — Vercel deployment
+
+Deployment is unverified because Vercel credentials were unavailable. The local build and
+routing contracts pass: nested `/api/*` paths have a filesystem catch-all function and the
+Vite SPA fallback no longer rewrites API paths to `/index.html`. When credentials are
+available, deploy a preview, verify `/api/health` and a nested non-GET API route, then run the
+live C2–C5 checks against that preview before promoting it.

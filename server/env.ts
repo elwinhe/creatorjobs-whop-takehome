@@ -12,7 +12,10 @@ const baseEnvironmentSchema = z.object({
   WHOP_WEBHOOK_SECRET: z.string().min(1),
 })
 
+const databaseEnvironmentSchema = baseEnvironmentSchema.pick({ DATABASE_URL: true })
+
 export type ServerEnv = z.infer<typeof baseEnvironmentSchema>
+export type DatabaseEnv = z.infer<typeof databaseEnvironmentSchema>
 
 const testDefaults: ServerEnv = {
   APP_BASE_URL: 'http://localhost:5173',
@@ -29,6 +32,10 @@ const testDefaults: ServerEnv = {
 export function parseServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEnv {
   const input = source.NODE_ENV === 'test' ? { ...testDefaults, ...source } : source
   return baseEnvironmentSchema.parse(input)
+}
+
+export function parseDatabaseEnv(source: NodeJS.ProcessEnv = process.env): DatabaseEnv {
+  return databaseEnvironmentSchema.parse(source)
 }
 
 export function formatEnvError(error: unknown): string {

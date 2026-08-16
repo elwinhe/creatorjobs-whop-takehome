@@ -391,10 +391,15 @@ export class PostgresMarketplaceRepository implements MarketplaceRepository {
         returning id, amount_cents, currency, idempotency_key::text, status, whop_transfer_id
       `
       if (!order.whop_company_id) throw new Error('Seller has no connected Whop company')
+      const [claim] = await transaction<{ id: string }[]>`
+        update payouts set status = 'processing', failure_reason = null
+        where id = ${payout.id} and status = 'pending' and whop_transfer_id is null
+        returning id
+      `
       return {
         ...payout,
         order_id: orderId,
-        shouldTransfer: payout.status === 'pending' && payout.whop_transfer_id === null,
+        shouldTransfer: Boolean(claim),
         whop_company_id: order.whop_company_id,
       }
     })
@@ -404,7 +409,7 @@ export class PostgresMarketplaceRepository implements MarketplaceRepository {
     await this.sql.begin(async (transaction) => {
       await transaction`
         update payouts set status = 'processing', whop_transfer_id = ${transferId}, failure_reason = null
-        where id = ${payoutId} and status = 'pending'
+        where id = ${payoutId} and status = 'processing' and whop_transfer_id is null
       `
       const [order] = await transaction<{ status: OrderStatus }[]>`
         select status from orders where id = ${orderId} for update

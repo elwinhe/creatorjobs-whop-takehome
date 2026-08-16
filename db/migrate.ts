@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { createDatabase } from '../server/db.ts'
-import { formatEnvError, parseServerEnv } from '../server/env.ts'
+import { formatEnvError, parseDatabaseEnv } from '../server/env.ts'
 
 const migrationsDirectory = fileURLToPath(new URL('./migrations', import.meta.url))
 
 async function migrate(): Promise<void> {
-  const env = parseServerEnv()
+  const env = parseDatabaseEnv()
   const sql = createDatabase(env.DATABASE_URL, 1)
 
   try {

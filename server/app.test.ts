@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import Whop from '@whop/sdk'
 import { Webhook } from 'standardwebhooks'
 import { createMarketplaceApp } from './app.ts'
+import { approveOrderAndPay } from './domain.ts'
 import type {
   Actor,
   ListingView,
@@ -106,13 +107,15 @@ class MemoryRepository implements MarketplaceRepository {
     }
     this.events.push({ applied, from, to: 'completed' })
     if (!applied && !['completed', 'payout_pending', 'paid_out', 'payout_failed'].includes(from)) return null
+    const claimed = this.payoutStatus === 'pending' && this.transferId === null
+    if (claimed) this.payoutStatus = 'processing'
     return {
       amount_cents: 25000,
       currency: 'usd',
       id: payoutId,
       idempotency_key: '60000000-0000-4000-8000-000000000001',
       order_id: targetOrderId,
-      shouldTransfer: this.payoutStatus === 'pending' && this.transferId === null,
+      shouldTransfer: claimed,
       whop_company_id: 'biz_seller',
       whop_transfer_id: this.transferId,
     }
@@ -421,6 +424,21 @@ describe('order lifecycle and payout idempotency', () => {
     expect(repository.orderStatus as OrderStatus).toBe('payout_failed')
     expect(repository.payoutFailedReason).toBe('insufficient sandbox balance')
     expect(fake.transferCalls()).toBe(1)
+  })
+
+  test('claims the persisted payout before simultaneous approval calls transfer', async () => {
+    const repository = new MemoryRepository()
+    repository.orderStatus = 'delivered'
+    const fake = gateway()
+
+    const [first, second] = await Promise.all([
+      approveOrderAndPay(repository, fake.whop, 'biz_platform', orderId),
+      approveOrderAndPay(repository, fake.whop, 'biz_platform', orderId),
+    ])
+
+    expect(fake.transferCalls()).toBe(1)
+    expect(repository.payoutRows).toBe(1)
+    expect([first?.transferred, second?.transferred].sort()).toEqual([false, true])
   })
 })
 

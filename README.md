@@ -33,7 +33,7 @@ Fill `.env.local` with isolated sandbox credentials. Vite and Bun load local env
 | `WHOP_WEBHOOK_SECRET` | yes | Raw secret copied from webhook registration |
 | `WHOP_API_VERSION` | no | Pinned date; defaults to `2026-07-20` |
 
-Environment validation is strict when the runtime starts. Tests receive non-secret local defaults and inject fake Whop/database boundaries, so `bun test` needs no credentials.
+Environment validation is strict for every required integration value when the server runtime starts. The migration and seed commands intentionally validate only `DATABASE_URL`; they do not require unrelated Whop configuration. Tests receive non-secret local defaults and inject fake Whop/database boundaries, so `bun test` needs no credentials.
 
 ## Database setup
 
@@ -44,7 +44,7 @@ bun run migrate
 bun run seed
 ```
 
-The deterministic seed inserts one admin, two buyers, two sellers/profiles, and three listings. Both commands are safe to rerun: applied migrations are skipped and seed conflicts are no-ops.
+The deterministic seed inserts one admin, two buyers, two sellers/profiles, and three listings. Both commands are safe to rerun: applied migrations are skipped and seed conflicts are no-ops. C0 database health passed against the isolated hosted Postgres database. C1 migration and seed passed twice there, with final counts `users=5`, `seller_profiles=2`, `listings=3`, and every other marketplace/evidence table at `0`.
 
 ## Run and validate
 
@@ -74,7 +74,7 @@ listing → local order (price snapshot) → Whop checkout
        → buyer approval → one local payout intent → Whop transfer → paid out
 ```
 
-All outbound Whop SDK operations pass through one gateway and write `api_request_log`, including HTTP status, request ID when supplied, and failure text. Seller links may be regenerated safely. Checkout and transfer calls use stable idempotency keys; `payouts.order_id` is unique and the payout row is created under an order lock before the network call.
+All outbound Whop SDK operations pass through one gateway and write `api_request_log`, including HTTP status, request ID when supplied, and failure text. Seller links may be regenerated safely. Checkout and transfer calls use stable idempotency keys. `payouts.order_id` is unique, and approval atomically changes the persisted payout from `pending` to `processing` before the network call. Only the request that acquires that database claim may call Whop; simultaneous approvals reuse the same payout but cannot both issue a transfer request.
 
 The transfer path records `completed → payout_pending`, retrieves the created transfer for reconciliation, then records `paid_out`. Whop’s current transfer object has no asynchronous status field and no documented `transfer.*` webhook; a failed create/retrieve is captured as both a failed payout and `payout_failed` order transition.
 
@@ -94,7 +94,7 @@ Every transition locks the order and compares the current state with an explicit
 
 ### Double approval or transfer retry
 
-Approval and payout-intent creation are one transaction. The unique order payout is returned on repeat approval, but its persisted status/transfer ID prevents a second transfer call. The same persisted UUID is sent as Whop’s `Idempotency-Key` and ledger `idempotence_key`, so a transport-level retry is also double-pay resistant.
+Approval, payout-intent creation, and transfer ownership claim are one transaction. A repeat or simultaneous approval can read the unique order payout, but only the transaction that atomically claims its persisted status may call Whop. The same persisted UUID is sent as Whop’s `Idempotency-Key` and ledger `idempotence_key`, so a transport-level retry is also double-pay resistant.
 
 ### Upstream failure
 
@@ -113,7 +113,7 @@ The SDK sends the pinned `Api-Version-Date` automatically. Current Experimental/
 
 ## Vercel deployment readiness
 
-[`api/index.ts`](api/index.ts) exposes the same Hono app through `hono/vercel`; [`server/index.ts`](server/index.ts) retains the local Node/Bun listener and starts only when executed directly. [`vercel.json`](vercel.json) builds the Vite client, routes `/api/*` to the function, and serves the SPA for browser routes.
+[`api/index.ts`](api/index.ts) exposes the same Hono app through `hono/vercel`; [`api/[...path].ts`](api/[...path].ts) gives nested `/api/*` paths a filesystem function match without rewriting away the Hono route. [`server/index.ts`](server/index.ts) retains the local Node/Bun listener and starts only when executed directly. [`vercel.json`](vercel.json) builds the Vite client and applies the SPA fallback only after Vercel checks filesystem routes.
 
 Before deploying:
 
@@ -123,7 +123,7 @@ Before deploying:
 4. Register `https://<deployment>/api/webhooks/whop` for the event set in Architecture §4, then store the returned secret once.
 5. Run checkout, replay, tamper, out-of-order, and payout scenarios against the deployed endpoint.
 
-No live deployment, database migration, webhook registration, sandbox checkout, or transfer result is claimed by this repository state; those gates require external credentials and operator review.
+Automated C2/C3/C4/C5/C6 contracts pass. No live seller onboarding, checkout, webhook registration/delivery, hosted KYC link, transfer, real Whop `biz_…` ID, or Vercel deployment is claimed: live C2/C3/C4/C5 and C7 remain gated on Whop sandbox and Vercel credentials. See [`docs/LIVE_GATES.md`](docs/LIVE_GATES.md) for the exact evidence and remaining checks.
 
 ## Design system
 

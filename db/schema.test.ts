@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 const migrationUrl = new URL('./migrations/001_init.sql', import.meta.url)
 const seedUrl = new URL('./seed.ts', import.meta.url)
+const repositoryUrl = new URL('../server/repository.ts', import.meta.url)
 
 describe('database contracts', () => {
   test('the initial migration defines exactly the nine marketplace tables', async () => {
@@ -30,5 +31,14 @@ describe('database contracts', () => {
     expect(source.match(/profile[A-B]:/g)).toHaveLength(2)
     expect(source.match(/listing[A-C]:/g)).toHaveLength(3)
     expect(source).toContain('on conflict do nothing')
+  })
+
+  test('payout transfer ownership is claimed atomically in the payout transaction', async () => {
+    const source = await Bun.file(repositoryUrl).text()
+
+    expect(source).toMatch(
+      /update payouts set status = 'processing',[\s\S]*where id = \$\{payout\.id\} and status = 'pending' and whop_transfer_id is null[\s\S]*returning id/,
+    )
+    expect(source).toContain('shouldTransfer: Boolean(claim)')
   })
 })

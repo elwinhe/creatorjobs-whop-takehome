@@ -1,5 +1,5 @@
 import { createDatabase } from '../server/db.ts'
-import { formatEnvError, parseServerEnv } from '../server/env.ts'
+import { formatEnvError, parseDatabaseEnv } from '../server/env.ts'
 
 const ids = {
   admin: '10000000-0000-4000-8000-000000000001',
@@ -15,7 +15,7 @@ const ids = {
 } as const
 
 async function seed(): Promise<void> {
-  const env = parseServerEnv()
+  const env = parseDatabaseEnv()
   const sql = createDatabase(env.DATABASE_URL, 1)
 
   try {
