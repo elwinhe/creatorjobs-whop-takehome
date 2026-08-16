@@ -27,6 +27,7 @@ class MemoryRepository implements MarketplaceRepository {
   events: { applied: boolean; from: OrderStatus; to: OrderStatus }[] = []
   orderStatus: OrderStatus = 'pending_payment'
   payoutFailedReason: string | null = null
+  payoutRows = 0
   payoutStatus = 'pending'
   returnOrder = true
   savedCheckoutId: string | null = null
@@ -99,7 +100,10 @@ class MemoryRepository implements MarketplaceRepository {
   async approveAndCreatePayout(targetOrderId: string): Promise<PayoutIntent | null> {
     const from = this.orderStatus
     const applied = from === 'delivered'
-    if (applied) this.orderStatus = 'completed'
+    if (applied) {
+      this.orderStatus = 'completed'
+      this.payoutRows = 1
+    }
     this.events.push({ applied, from, to: 'completed' })
     if (!applied && !['completed', 'payout_pending', 'paid_out', 'payout_failed'].includes(from)) return null
     return {
@@ -164,6 +168,8 @@ function gateway(options: { failTransfer?: boolean } = {}) {
   const accountLinkInputs: Parameters<WhopGateway['createAccountLink']>[0][] = []
   const checkoutInputs: Parameters<WhopGateway['createCheckout']>[0][] = []
   const companyInputs: Parameters<WhopGateway['createCompany']>[0][] = []
+  const retrievedTransfers: string[] = []
+  const transferInputs: Parameters<WhopGateway['createTransfer']>[0][] = []
   let transferCalls = 0
   const whop: WhopGateway = {
     async createAccountLink(input) {
@@ -178,15 +184,19 @@ function gateway(options: { failTransfer?: boolean } = {}) {
       companyInputs.push(input)
       return { id: 'biz_test_seller' }
     },
-    async createTransfer() {
+    async createTransfer(input) {
       transferCalls += 1
+      transferInputs.push(input)
       if (options.failTransfer) throw new Error('insufficient sandbox balance')
       return { id: 'tr_test' }
     },
-    async retrieveTransfer(transferId: string) { return { id: transferId } },
+    async retrieveTransfer(transferId: string) {
+      retrievedTransfers.push(transferId)
+      return { id: transferId }
+    },
     verifyWebhook(rawBody, headers) { return verifier.webhooks.unwrap(rawBody, { headers }) },
   }
-  return { accountLinkInputs, checkoutInputs, companyInputs, rawSecret, transferCalls: () => transferCalls, whop }
+  return { accountLinkInputs, checkoutInputs, companyInputs, rawSecret, retrievedTransfers, transferCalls: () => transferCalls, transferInputs, whop }
 }
 
 function signedRequest(rawSecret: string, eventId: string, body: string): Request {
@@ -382,10 +392,22 @@ describe('order lifecycle and payout idempotency', () => {
     expect((await app.request(`/api/orders/${orderId}/submit`, { body: JSON.stringify({ note: 'Delivered' }), headers: { 'content-type': 'application/json' }, method: 'POST' })).status).toBe(200)
     expect((await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })).status).toBe(200)
     expect(repository.orderStatus as OrderStatus).toBe('paid_out')
+    expect(repository.payoutRows).toBe(1)
     expect(fake.transferCalls()).toBe(1)
+    expect(fake.transferInputs).toEqual([{
+      amountCents: 25000,
+      currency: 'usd',
+      destinationId: 'biz_seller',
+      idempotencyKey: '60000000-0000-4000-8000-000000000001',
+      orderId,
+      originId: 'biz_platform',
+      payoutId,
+    }])
+    expect(fake.retrievedTransfers).toEqual(['tr_test'])
 
     const duplicateApprove = await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })
     expect(duplicateApprove.status).toBe(200)
+    expect(repository.payoutRows).toBe(1)
     expect(fake.transferCalls()).toBe(1)
   })
 
