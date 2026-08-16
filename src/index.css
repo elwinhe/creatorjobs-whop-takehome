@@ -23,6 +23,20 @@
     min-height: 100vh;
   }
 
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
   button,
   a {
     -webkit-tap-highlight-color: transparent;

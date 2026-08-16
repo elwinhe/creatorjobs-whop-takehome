@@ -14,7 +14,7 @@ const variantClasses = {
 } as const
 
 const sizeClasses = {
-  sm: 'h-9 px-3 text-sm',
+  sm: 'h-10 px-3 text-sm',
   md: 'h-11 px-4 text-sm',
 } as const
 
@@ -34,7 +34,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    'inline-flex items-center justify-center gap-2 rounded-md font-semibold tracking-[-0.01em] transition-colors duration-[var(--creatorjobs-motion-fast)] disabled:pointer-events-none disabled:opacity-50',
+    'inline-flex min-h-10 items-center justify-center gap-2 rounded-md font-semibold tracking-[-0.01em] transition-[background-color,border-color,color,scale] duration-[var(--creatorjobs-motion-fast)] ease-[var(--creatorjobs-motion-ease)] active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50',
     variantClasses[variant],
     sizeClasses[size],
     className,
