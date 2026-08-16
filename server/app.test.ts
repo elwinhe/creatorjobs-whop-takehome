@@ -23,10 +23,13 @@ const payoutId = '50000000-0000-4000-8000-000000000001'
 class MemoryRepository implements MarketplaceRepository {
   accountLinkCalls = 0
   createdSeller: { displayName: string; email: string } | null = null
+  createdOrder: { buyerEmail: string; listingId: string } | null = null
   events: { applied: boolean; from: OrderStatus; to: OrderStatus }[] = []
   orderStatus: OrderStatus = 'pending_payment'
   payoutFailedReason: string | null = null
   payoutStatus = 'pending'
+  returnOrder = true
+  savedCheckoutId: string | null = null
   transferId: string | null = null
   webhooks = new Map<string, { id: string; status: string }>()
   sellerState: SellerView = {
@@ -53,8 +56,11 @@ class MemoryRepository implements MarketplaceRepository {
   }
   async getSeller() { return this.sellerState }
   async listListings(): Promise<ListingView[]> { return [] }
-  async createOrder(): Promise<OrderDraft | null> { return { amount_cents: 25000, currency: 'usd', id: orderId } }
-  async setCheckout() {}
+  async createOrder(listingId: string, buyerEmail: string): Promise<OrderDraft | null> {
+    this.createdOrder = { buyerEmail, listingId }
+    return this.returnOrder ? { amount_cents: 25000, currency: 'usd', id: orderId } : null
+  }
+  async setCheckout(_orderId: string, checkoutId: string) { this.savedCheckoutId = checkoutId }
   async getOrder() { return { id: orderId, status: this.orderStatus } }
   async getDashboard() { return { orders: [], sellers: [], payouts: [], webhooks: [], errors: [] } }
 
@@ -156,6 +162,7 @@ function gateway(options: { failTransfer?: boolean } = {}) {
   const encodedSecret = Buffer.from(rawSecret).toString('base64')
   const verifier = new Whop({ apiKey: 'test', webhookKey: encodedSecret })
   const accountLinkInputs: Parameters<WhopGateway['createAccountLink']>[0][] = []
+  const checkoutInputs: Parameters<WhopGateway['createCheckout']>[0][] = []
   const companyInputs: Parameters<WhopGateway['createCompany']>[0][] = []
   let transferCalls = 0
   const whop: WhopGateway = {
@@ -163,7 +170,10 @@ function gateway(options: { failTransfer?: boolean } = {}) {
       accountLinkInputs.push(input)
       return { expires_at: new Date().toISOString(), url: `https://whop.test/link/${accountLinkInputs.length}` }
     },
-    async createCheckout() { return { id: 'ch_test', purchase_url: 'https://whop.test/checkout' } },
+    async createCheckout(input) {
+      checkoutInputs.push(input)
+      return { id: 'ch_test', purchase_url: 'https://whop.test/checkout' }
+    },
     async createCompany(input) {
       companyInputs.push(input)
       return { id: 'biz_test_seller' }
@@ -176,7 +186,7 @@ function gateway(options: { failTransfer?: boolean } = {}) {
     async retrieveTransfer(transferId: string) { return { id: transferId } },
     verifyWebhook(rawBody, headers) { return verifier.webhooks.unwrap(rawBody, { headers }) },
   }
-  return { accountLinkInputs, companyInputs, rawSecret, transferCalls: () => transferCalls, whop }
+  return { accountLinkInputs, checkoutInputs, companyInputs, rawSecret, transferCalls: () => transferCalls, whop }
 }
 
 function signedRequest(rawSecret: string, eventId: string, body: string): Request {
@@ -253,6 +263,49 @@ describe('seller onboarding', () => {
     const seller = await (await app.request(`/api/sellers/${sellerId}`)).json() as SellerView
     expect(seller.onboarding_status).toBe('payout_ready')
     expect(seller.has_payout_method).toBe(true)
+  })
+})
+
+describe('listing checkout', () => {
+  test('creates checkout from the local order snapshot and persists its ID', async () => {
+    const repository = new MemoryRepository()
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+    const listingId = '30000000-0000-4000-8000-000000000001'
+
+    const response = await app.request('/api/orders', {
+      body: JSON.stringify({ buyer_email: 'BUYER@EXAMPLE.COM', listing_id: listingId }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+
+    expect(response.status).toBe(201)
+    expect(await response.json()).toEqual({ order_id: orderId, purchase_url: 'https://whop.test/checkout' })
+    expect(repository.createdOrder).toEqual({ buyerEmail: 'buyer@example.com', listingId })
+    expect(fake.checkoutInputs).toEqual([{
+      amountCents: 25000,
+      currency: 'usd',
+      idempotencyKey: `checkout-${orderId}`,
+      orderId,
+      redirectUrl: `http://localhost:5173/orders/${orderId}`,
+    }])
+    expect(repository.savedCheckoutId).toBe('ch_test')
+  })
+
+  test('returns 404 without a Whop call when the listing is unavailable', async () => {
+    const repository = new MemoryRepository()
+    repository.returnOrder = false
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request('/api/orders', {
+      body: JSON.stringify({ buyer_email: 'buyer@example.com', listing_id: '30000000-0000-4000-8000-000000000001' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+
+    expect(response.status).toBe(404)
+    expect(fake.checkoutInputs).toHaveLength(0)
   })
 })
 
