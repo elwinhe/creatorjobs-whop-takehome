@@ -21,18 +21,37 @@ const sellerId = '20000000-0000-4000-8000-000000000001'
 const payoutId = '50000000-0000-4000-8000-000000000001'
 
 class MemoryRepository implements MarketplaceRepository {
+  accountLinkCalls = 0
+  createdSeller: { displayName: string; email: string } | null = null
   events: { applied: boolean; from: OrderStatus; to: OrderStatus }[] = []
   orderStatus: OrderStatus = 'pending_payment'
   payoutFailedReason: string | null = null
   payoutStatus = 'pending'
   transferId: string | null = null
   webhooks = new Map<string, { id: string; status: string }>()
+  sellerState: SellerView = {
+    display_name: 'Seller',
+    email: 'seller@example.com',
+    has_payout_method: false,
+    id: sellerId,
+    last_account_link_url: null,
+    onboarding_status: 'created',
+    whop_company_id: 'biz_seller',
+  }
 
   async ping() { return true }
-  async createSeller(email: string, displayName: string) { return this.seller(email, displayName) }
-  async setSellerCompany() {}
-  async setAccountLink() {}
-  async getSeller() { return this.seller('seller@example.com', 'Seller') }
+  async createSeller(email: string, displayName: string) {
+    this.createdSeller = { displayName, email }
+    this.sellerState = { ...this.sellerState, display_name: displayName, email, whop_company_id: null }
+    return this.sellerState
+  }
+  async setSellerCompany(_sellerId: string, companyId: string) { this.sellerState.whop_company_id = companyId }
+  async setAccountLink(_sellerId: string, url: string) {
+    this.accountLinkCalls += 1
+    this.sellerState.last_account_link_url = url
+    this.sellerState.onboarding_status = 'link_sent'
+  }
+  async getSeller() { return this.sellerState }
   async listListings(): Promise<ListingView[]> { return [] }
   async createOrder(): Promise<OrderDraft | null> { return { amount_cents: 25000, currency: 'usd', id: orderId } }
   async setCheckout() {}
@@ -122,18 +141,13 @@ class MemoryRepository implements MarketplaceRepository {
     if (webhook && webhook.status !== 'duplicate') webhook.status = status
   }
 
-  async updateSellerReadiness() { return true }
-
-  private seller(email: string, displayName: string): SellerView {
-    return {
-      display_name: displayName,
-      email,
-      has_payout_method: false,
-      id: sellerId,
-      last_account_link_url: null,
-      onboarding_status: 'created',
-      whop_company_id: 'biz_seller',
+  async updateSellerReadiness(_companyId: string, eventType: string) {
+    if (eventType === 'verification.succeeded') this.sellerState.onboarding_status = 'verified'
+    if (eventType === 'payout_method.created') {
+      this.sellerState.has_payout_method = true
+      this.sellerState.onboarding_status = 'payout_ready'
     }
+    return true
   }
 }
 
@@ -141,11 +155,19 @@ function gateway(options: { failTransfer?: boolean } = {}) {
   const rawSecret = 'creatorjobs-test-secret'
   const encodedSecret = Buffer.from(rawSecret).toString('base64')
   const verifier = new Whop({ apiKey: 'test', webhookKey: encodedSecret })
+  const accountLinkInputs: Parameters<WhopGateway['createAccountLink']>[0][] = []
+  const companyInputs: Parameters<WhopGateway['createCompany']>[0][] = []
   let transferCalls = 0
   const whop: WhopGateway = {
-    async createAccountLink() { return { expires_at: new Date().toISOString(), url: 'https://whop.test/link' } },
+    async createAccountLink(input) {
+      accountLinkInputs.push(input)
+      return { expires_at: new Date().toISOString(), url: `https://whop.test/link/${accountLinkInputs.length}` }
+    },
     async createCheckout() { return { id: 'ch_test', purchase_url: 'https://whop.test/checkout' } },
-    async createCompany() { return { id: 'biz_test_seller' } },
+    async createCompany(input) {
+      companyInputs.push(input)
+      return { id: 'biz_test_seller' }
+    },
     async createTransfer() {
       transferCalls += 1
       if (options.failTransfer) throw new Error('insufficient sandbox balance')
@@ -154,7 +176,7 @@ function gateway(options: { failTransfer?: boolean } = {}) {
     async retrieveTransfer(transferId: string) { return { id: transferId } },
     verifyWebhook(rawBody, headers) { return verifier.webhooks.unwrap(rawBody, { headers }) },
   }
-  return { rawSecret, transferCalls: () => transferCalls, whop }
+  return { accountLinkInputs, companyInputs, rawSecret, transferCalls: () => transferCalls, whop }
 }
 
 function signedRequest(rawSecret: string, eventId: string, body: string): Request {
@@ -184,6 +206,55 @@ function testApp(repository: MemoryRepository, whop: WhopGateway) {
   })
   return { app, flush: () => Promise.all(deferred) }
 }
+
+describe('seller onboarding', () => {
+  test('shapes connected-company and repeatable account-link requests', async () => {
+    const repository = new MemoryRepository()
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const create = await app.request('/api/sellers', {
+      body: JSON.stringify({ display_name: 'Northstar Studio', email: 'CREATOR@EXAMPLE.COM' }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    })
+    expect(create.status).toBe(201)
+    expect(repository.createdSeller).toEqual({ displayName: 'Northstar Studio', email: 'creator@example.com' })
+    expect(fake.companyInputs).toEqual([{
+      email: 'creator@example.com',
+      parentCompanyId: 'biz_platform',
+      sellerId,
+      title: 'Northstar Studio',
+    }])
+
+    const first = await app.request(`/api/sellers/${sellerId}/account-link`, { method: 'POST' })
+    const second = await app.request(`/api/sellers/${sellerId}/account-link`, { method: 'POST' })
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(fake.accountLinkInputs).toEqual([
+      { companyId: 'biz_test_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}` },
+      { companyId: 'biz_test_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}` },
+    ])
+    expect(repository.accountLinkCalls).toBe(2)
+    expect(repository.sellerState.onboarding_status).toBe('link_sent')
+  })
+
+  test('advances verified and payout-ready status from signed webhooks', async () => {
+    const repository = new MemoryRepository()
+    const fake = gateway()
+    const { app, flush } = testApp(repository, fake.whop)
+
+    for (const [eventId, type] of [['msg_verify', 'verification.succeeded'], ['msg_payout', 'payout_method.created']] as const) {
+      const body = JSON.stringify({ company_id: 'biz_seller', data: {}, id: eventId, type })
+      expect((await app.fetch(signedRequest(fake.rawSecret, eventId, body))).status).toBe(200)
+    }
+    await flush()
+
+    const seller = await (await app.request(`/api/sellers/${sellerId}`)).json() as SellerView
+    expect(seller.onboarding_status).toBe('payout_ready')
+    expect(seller.has_payout_method).toBe(true)
+  })
+})
 
 describe('Whop webhook reliability', () => {
   test('applies a signed payment once and marks a replay duplicate', async () => {
