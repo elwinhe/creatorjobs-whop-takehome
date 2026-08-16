@@ -1,0 +1,46 @@
+:root {
+  --creatorjobs-canvas: #f4f6f5;
+  --creatorjobs-surface: #ffffff;
+  --creatorjobs-ink: #101512;
+  --creatorjobs-muted: #657069;
+  --creatorjobs-line: #d9dfdb;
+  --creatorjobs-orange: #ff5c1a;
+  --creatorjobs-orange-strong: #d9470d;
+  --creatorjobs-orange-subtle: #ffebe2;
+  --creatorjobs-on-orange: #ffffff;
+
+  --creatorjobs-radius-sm: 0.5rem;
+  --creatorjobs-radius-md: 0.75rem;
+  --creatorjobs-radius-lg: 1rem;
+  --creatorjobs-shadow-surface: 0 1px 2px rgb(16 21 18 / 6%), 0 18px 50px rgb(16 21 18 / 7%);
+  --creatorjobs-motion-fast: 160ms;
+}
+
+@theme inline {
+  --color-background: var(--creatorjobs-canvas);
+  --color-surface: var(--creatorjobs-surface);
+  --color-foreground: var(--creatorjobs-ink);
+  --color-muted-foreground: var(--creatorjobs-muted);
+  --color-border: var(--creatorjobs-line);
+  --color-primary: var(--creatorjobs-orange);
+  --color-primary-hover: var(--creatorjobs-orange-strong);
+  --color-primary-subtle: var(--creatorjobs-orange-subtle);
+  --color-primary-foreground: var(--creatorjobs-on-orange);
+  --font-sans: 'Manrope Variable', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --radius-sm: var(--creatorjobs-radius-sm);
+  --radius-md: var(--creatorjobs-radius-md);
+  --radius-lg: var(--creatorjobs-radius-lg);
+  --shadow-surface: var(--creatorjobs-shadow-surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
