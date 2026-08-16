@@ -423,3 +423,21 @@ describe('order lifecycle and payout idempotency', () => {
     expect(fake.transferCalls()).toBe(1)
   })
 })
+
+describe('operations dashboard', () => {
+  test('reads local repository evidence without a Whop request', async () => {
+    const repository = new MemoryRepository()
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request('/api/dashboard')
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ errors: [], orders: [], payouts: [], sellers: [], webhooks: [] })
+    expect(fake.accountLinkInputs).toHaveLength(0)
+    expect(fake.checkoutInputs).toHaveLength(0)
+    expect(fake.companyInputs).toHaveLength(0)
+    expect(fake.transferInputs).toHaveLength(0)
+    expect(fake.retrievedTransfers).toHaveLength(0)
+  })
+})

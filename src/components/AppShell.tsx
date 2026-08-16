@@ -22,13 +22,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span>CreatorJobs</span>
             <span className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-rail-muted">Sandbox ops</span>
           </a>
-          <nav aria-label="Primary" className="flex gap-1 overflow-x-auto">
+          <nav aria-label="Primary" className="grid w-full grid-cols-3 gap-1 lg:flex lg:w-auto">
             {navigation.map(({ href, icon: Icon, label }) => {
               const active = href === '/' ? path === '/' : path.startsWith(href)
               return (
                 <a
                   className={cn(
-                    'inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-[background-color,color] duration-[var(--creatorjobs-motion-fast)]',
+                    'inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-medium transition-[background-color,color] duration-[var(--creatorjobs-motion-fast)] sm:gap-2 sm:px-3 sm:text-sm',
                     active ? 'bg-white text-rail' : 'text-rail-muted hover:bg-white/8 hover:text-white',
                   )}
                   href={href}
