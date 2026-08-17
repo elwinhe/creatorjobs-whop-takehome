@@ -4,7 +4,8 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Surface } from '../components/ui/Surface'
 import { api, money, shortId } from '../lib/api'
-import { statusTone } from '../lib/status'
+import { openPortalLink } from '../lib/portal'
+import { kycComplete, statusTone } from '../lib/status'
 
 type Row = Record<string, unknown>
 type Dashboard = { errors: Row[]; orders: Row[]; payouts: Row[]; sellers: Row[]; webhooks: Row[] }
@@ -25,15 +26,10 @@ export function DashboardScreen() {
 
   async function openSellerLink(id: string, endpoint: 'account-link' | 'payout-portal-link') {
     setBusySeller(id); setError(null)
-    const popup = window.open('about:blank', '_blank')
-    if (popup) popup.opener = null
     try {
-      const link = await api<{ url: string }>(`/api/sellers/${id}/${endpoint}`, { method: 'POST' })
-      if (popup) popup.location.href = link.url
-      else window.open(link.url, '_blank', 'noopener,noreferrer')
+      await openPortalLink(`/api/sellers/${id}/${endpoint}`)
       await load()
     } catch (reason) {
-      popup?.close()
       setError(reason instanceof Error ? reason.message : 'Link generation failed')
     } finally { setBusySeller(null) }
   }
@@ -51,8 +47,8 @@ export function DashboardScreen() {
         </Panel>
         <Panel count={data.sellers.length} title="Sellers">
           {data.sellers.length === 0 ? <Empty /> : data.sellers.map((row) => {
-            const kycComplete = ['verified', 'payout_ready'].includes(String(row.onboarding_status))
-            return <div className="flex min-h-20 flex-col items-start justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center" key={String(row.id)}><a className="min-w-0 transition-[color] duration-[var(--creatorjobs-motion-fast)] ease-[var(--creatorjobs-motion-ease)] hover:text-primary" href={`/seller?id=${row.id}`}><p className="break-words font-medium">{String(row.display_name)}</p><p className="mt-1"><Meta>{shortId(row.whop_company_id)} · {row.has_payout_method ? 'PAYOUT METHOD SAVED' : 'NO PAYOUT METHOD'}</Meta></p></a><div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end"><Badge tone={statusTone(row.onboarding_status)}>{String(row.onboarding_status)}</Badge>{kycComplete
+            const kycDone = kycComplete(row.onboarding_status)
+            return <div className="flex min-h-20 flex-col items-start justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center" key={String(row.id)}><a className="min-w-0 transition-[color] duration-[var(--creatorjobs-motion-fast)] ease-[var(--creatorjobs-motion-ease)] hover:text-primary" href={`/seller?id=${row.id}`}><p className="break-words font-medium">{String(row.display_name)}</p><p className="mt-1"><Meta>{shortId(row.whop_company_id)} · {row.has_payout_method ? 'PAYOUT METHOD SAVED' : 'NO PAYOUT METHOD'}</Meta></p></a><div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end"><Badge tone={statusTone(row.onboarding_status)}>{String(row.onboarding_status)}</Badge>{kycDone
               ? <Button aria-label={`Open Whop withdrawals for ${row.display_name}`} disabled={busySeller === row.id || !row.whop_company_id} onClick={() => openSellerLink(String(row.id), 'payout-portal-link')} size="sm" variant="ghost">{busySeller === row.id ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Withdrawals</Button>
               : <Button aria-label={`Regenerate KYC link for ${row.display_name}`} disabled={busySeller === row.id || !row.whop_company_id} onClick={() => openSellerLink(String(row.id), 'account-link')} size="sm" variant="ghost">{busySeller === row.id ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} KYC link</Button>}</div></div>
           })}

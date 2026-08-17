@@ -5,19 +5,18 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Surface } from '../components/ui/Surface'
 import { api, shortId } from '../lib/api'
-import { statusTone } from '../lib/status'
+import { openPortalLink } from '../lib/portal'
+import { kycComplete, onboardingRank, statusTone } from '../lib/status'
 
 type Seller = {
   display_name: string
   email: string
   has_payout_method: boolean
   id: string
-  last_account_link_url: string | null
   onboarding_status: string
   whop_company_id: string | null
 }
 
-const statusRank: Record<string, number> = { created: 0, link_sent: 1, verified: 2, payout_ready: 3 }
 const setupSteps = ['Connected account created', 'Onboarding link opened', 'Identity verified']
 
 export function SellerScreen() {
@@ -49,31 +48,23 @@ export function SellerScreen() {
   async function accountLink() {
     if (!seller) return
     setBusy(true); setError(null)
-    const popup = window.open('about:blank', '_blank')
-    if (popup) popup.opener = null
     try {
-      const link = await api<{ url: string }>(`/api/sellers/${seller.id}/account-link`, { method: 'POST' })
-      if (popup) popup.location.href = link.url
-      else window.open(link.url, '_blank', 'noopener,noreferrer')
+      await openPortalLink(`/api/sellers/${seller.id}/account-link`)
       await load(seller.id)
-    } catch (reason) {
-      popup?.close()
-      setError(reason instanceof Error ? reason.message : 'Account link failed')
-    } finally { setBusy(false) }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Account link failed') }
+    finally { setBusy(false) }
   }
 
   async function payoutPortal() {
     if (!seller) return
     setPayoutBusy(true); setError(null)
-    try {
-      const link = await api<{ url: string }>(`/api/sellers/${seller.id}/payout-portal-link`, { method: 'POST' })
-      window.location.assign(link.url)
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Payout portal link failed') }
+    try { await openPortalLink(`/api/sellers/${seller.id}/payout-portal-link`) }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Payout portal link failed') }
     finally { setPayoutBusy(false) }
   }
 
-  const currentRank = seller ? (statusRank[seller.onboarding_status] ?? 0) : 0
-  const kycComplete = Boolean(seller) && currentRank >= statusRank.verified
+  const currentRank = seller ? onboardingRank(seller.onboarding_status) : 0
+  const kycDone = seller !== null && kycComplete(seller.onboarding_status)
   return (
     <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
       <section>
@@ -106,8 +97,8 @@ export function SellerScreen() {
             })}
           </ol>
           {seller && <div className="mt-7 flex flex-wrap gap-3">
-            {!kycComplete && <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={accountLink} variant="secondary">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>}
-            {kycComplete && <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={payoutPortal}>{payoutBusy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Manage withdrawals</Button>}
+            {!kycDone && <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={accountLink} variant="secondary">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>}
+            {kycDone && <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={payoutPortal}>{payoutBusy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Manage withdrawals</Button>}
           </div>}
         </div>
       </Surface>
