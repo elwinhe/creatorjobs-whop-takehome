@@ -48,7 +48,6 @@ export function MarketplaceScreen() {
     <>
       <section className="grid gap-8 border-b border-border pb-10 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <Badge tone="accent">Open creator services</Badge>
           <h1 className="mt-5 max-w-3xl text-4xl font-semibold leading-[1.02] tracking-[-0.05em] sm:text-5xl lg:text-6xl">
             Hire the work. Track every handoff.
           </h1>
