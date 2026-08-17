@@ -8,8 +8,8 @@ import {
 import { cn } from '../../lib/cn'
 
 const variantClasses = {
-  primary: 'bg-primary text-primary-foreground hover:bg-primary-hover',
-  secondary: 'border border-border bg-surface text-foreground hover:border-foreground/35',
+  primary: 'bg-primary text-primary-foreground shadow-primary hover:bg-primary-hover',
+  secondary: 'bg-surface text-foreground shadow-control hover:shadow-control-hover',
   ghost: 'text-foreground hover:bg-foreground/5',
 } as const
 
@@ -34,7 +34,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    'inline-flex min-h-10 items-center justify-center gap-2 rounded-md font-semibold tracking-[-0.01em] transition-[background-color,border-color,color,scale] duration-[var(--creatorjobs-motion-fast)] ease-[var(--creatorjobs-motion-ease)] active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50',
+    'inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md font-semibold tracking-[-0.01em] transition-[background-color,box-shadow,color,scale] duration-[var(--creatorjobs-motion-fast)] ease-[var(--creatorjobs-motion-ease)] active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none',
     variantClasses[variant],
     sizeClasses[size],
     className,

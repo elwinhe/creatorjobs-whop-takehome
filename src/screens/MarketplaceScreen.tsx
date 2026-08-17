@@ -62,14 +62,15 @@ export function MarketplaceScreen() {
         </label>
       </section>
 
-      {error && <p className="mt-6 rounded-md bg-negative-subtle px-4 py-3 text-sm text-negative" role="alert">{error}</p>}
+      {error && <p className="mt-6 rounded-md bg-negative-subtle px-4 py-3 text-sm font-medium text-negative shadow-error" role="alert">{error}</p>}
       {loading ? (
-        <div className="grid min-h-64 place-items-center text-muted-foreground"><LoaderCircle className="size-6 animate-spin" /></div>
+        <div aria-label="Loading listings" className="grid min-h-64 place-items-center text-muted-foreground" role="status"><LoaderCircle className="size-6 animate-spin" /></div>
       ) : (
         <section aria-label="Listings" className="grid gap-5 py-8 md:grid-cols-2 xl:grid-cols-3">
+          {listings.length === 0 && <Surface className="px-5 py-8 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">No active listings.</Surface>}
           {listings.map((listing, index) => (
             <Surface className="group flex min-h-80 flex-col overflow-hidden p-2" key={listing.id}>
-              <div className="flex flex-1 flex-col rounded-md bg-background p-5">
+              <div className="flex flex-1 flex-col rounded-sm bg-background p-5">
                 <div className="flex items-start justify-between gap-4">
                   <span className="grid size-11 place-items-center rounded-md bg-primary-subtle text-primary-hover"><Film className="size-4.5" /></span>
                   <span className="font-mono text-xs text-muted-foreground">0{index + 1}</span>
@@ -77,7 +78,7 @@ export function MarketplaceScreen() {
                 <p className="mt-8 font-mono text-[0.6875rem] uppercase tracking-[0.12em] text-primary-hover">{listing.seller_name}</p>
                 <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em]">{listing.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-muted-foreground">{listing.description}</p>
-                <div className="mt-auto flex items-end justify-between gap-4 pt-8">
+                <div className="mt-auto flex flex-wrap items-end justify-between gap-4 pt-8">
                   <div>
                     <p className="font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground">Project fee</p>
                     <p className="mt-1 text-2xl font-semibold tracking-[-0.03em]" data-numeric>{money(listing.price_cents, listing.currency)}</p>

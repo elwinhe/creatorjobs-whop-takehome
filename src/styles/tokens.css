@@ -18,7 +18,17 @@
   --creatorjobs-radius-sm: 0.5rem;
   --creatorjobs-radius-md: 0.75rem;
   --creatorjobs-radius-lg: 1rem;
-  --creatorjobs-shadow-surface: 0 1px 2px rgb(16 21 18 / 6%), 0 18px 50px rgb(16 21 18 / 7%);
+  --creatorjobs-shadow-surface:
+    inset 0 0 0 1px rgb(16 21 18 / 8%),
+    0 1px 2px rgb(16 21 18 / 5%),
+    0 14px 36px rgb(16 21 18 / 6%);
+  --creatorjobs-shadow-control: inset 0 0 0 1px rgb(16 21 18 / 14%), 0 1px 2px rgb(16 21 18 / 5%);
+  --creatorjobs-shadow-control-hover: inset 0 0 0 1px rgb(16 21 18 / 28%), 0 1px 2px rgb(16 21 18 / 7%);
+  --creatorjobs-shadow-control-focus: inset 0 0 0 2px var(--creatorjobs-orange), 0 1px 2px rgb(16 21 18 / 5%);
+  --creatorjobs-shadow-primary: 0 1px 2px rgb(16 21 18 / 12%), 0 5px 14px rgb(255 92 26 / 18%);
+  --creatorjobs-shadow-rail: inset 0 -1px 0 rgb(255 255 255 / 8%), 0 8px 24px rgb(16 21 18 / 10%);
+  --creatorjobs-shadow-status: inset 0 0 0 1px rgb(16 21 18 / 5%);
+  --creatorjobs-shadow-error: inset 3px 0 0 var(--creatorjobs-negative), inset 0 0 0 1px rgb(185 56 34 / 10%);
   --creatorjobs-motion-fast: 160ms;
   --creatorjobs-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 }
@@ -45,6 +55,13 @@
   --radius-md: var(--creatorjobs-radius-md);
   --radius-lg: var(--creatorjobs-radius-lg);
   --shadow-surface: var(--creatorjobs-shadow-surface);
+  --shadow-control: var(--creatorjobs-shadow-control);
+  --shadow-control-hover: var(--creatorjobs-shadow-control-hover);
+  --shadow-control-focus: var(--creatorjobs-shadow-control-focus);
+  --shadow-primary: var(--creatorjobs-shadow-primary);
+  --shadow-rail: var(--creatorjobs-shadow-rail);
+  --shadow-status: var(--creatorjobs-shadow-status);
+  --shadow-error: var(--creatorjobs-shadow-error);
 }
 
 @media (prefers-reduced-motion: reduce) {

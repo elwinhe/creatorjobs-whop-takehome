@@ -10,11 +10,11 @@ from requirements that remain incomplete or unverified.
 | --- | --- | --- |
 | Health | Live passed | `/api/health` returned `{ ok: true, db: true }` against isolated hosted Postgres. |
 | Database | Live passed | Migration and deterministic seed completed twice without duplicate data. |
-| Seller onboarding | Live passed, payout setup partial | A real connected child company was created and distinct hosted onboarding links were reachable. The app does not provide a payout-method setup UI. |
+| Seller onboarding | Live onboarding passed; payout portal automated | A real connected child company was created and distinct hosted onboarding links were reachable. The seller UI now requests fresh, non-persisted hosted `payouts_portal` links from a dedicated endpoint; its success and failure contracts pass automated tests. |
 | Checkout | Live passed | A hosted sandbox checkout completed; Whop reported the payment `paid`, preserved the local order metadata, and redirected to the order page. |
 | Webhooks | Live passed | Signed success, replay, tamper rejection, and out-of-order delivery behavior were observed through a temporary HTTPS endpoint. |
 | Lifecycle and payout | Lifecycle live passed; transfer provider-blocked | The order reached `completed` and created one payout intent. Whop rejected the sandbox transfer; no live `paid_out` state is claimed. Transfer success and idempotency are covered by automated tests. |
-| Operations dashboard | Automated passed; manual browser QA unverified | The five database-only panels and account-link regeneration have contract coverage. |
+| Operations dashboard | Automated and manual browser passed | The five database-only panels and account-link regeneration have contract coverage. All populated panels were inspected locally at mobile and desktop widths. |
 | Deployment | Build/routing passed; public deployment missing | Production build, routing contracts, and Vercel `waitUntil` adapter wiring pass automated checks, but no public Vercel deployment or manual deployed verification exists. |
 
 ## Live evidence
@@ -44,9 +44,12 @@ external identifiers are included in this report.
 
 ## Automated evidence
 
-The final validation run passed 21 tests with 79 assertions, plus lint, typecheck, and the
+The final validation run passed 26 tests with 105 assertions, plus lint, typecheck, and the
 production build. Coverage includes:
 
+- fresh hosted `payouts_portal` links, missing or unconnected seller rejection, upstream
+  failure sanitization, and the guarantee that temporary portal URLs do not mutate seller
+  state;
 - webhook signature verification, duplicate delivery, tampered-body rejection, and
   out-of-order state handling;
 - mocked transfer success, upstream failure capture, duplicate approval, and simultaneous
@@ -55,7 +58,19 @@ production build. Coverage includes:
 - Vercel/API routing, `waitUntil` adapter wiring, and production-build contracts.
 
 Automated coverage is not evidence of a successful live transfer, a completed manual
-dashboard browser pass, or a public deployment.
+hosted payout-portal visit, or a public deployment.
+
+## Manual browser evidence
+
+Local responsive QA covered `/`, `/seller`, `/dashboard`, and a populated order route at
+320×900, 390×900, and 1440×1000. Supplemental captures covered a populated seller record
+at mobile and desktop widths and the full five-panel dashboard at 320px and 1440px. Brand
+and navigation wrapping, action groups, long identifiers and emails, dashboard rows,
+provider errors, status badges, and order evidence remained visible without horizontal
+clipping. Browser logs contained no application console or runtime errors.
+
+The seller payout controls were visually inspected, but the external hosted payout portal
+was not opened during this pass.
 
 ## Provider limitation
 
@@ -68,15 +83,13 @@ remain unverified. Mocked transfer tests establish application behavior only.
 
 ### Functional and deployment readiness
 
-- Seller payout setup is partial. CreatorJobs creates an `account_onboarding` KYC link and
-  observes payout-method webhooks, but it exposes neither a `payouts_portal` link nor an
-  embedded add-payout-method flow.
 - The Vercel entrypoint passes [`waitUntil`](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package)
-  into the runtime as `defer`, and an adapter contract test protects that wiring. This
-  extends post-response processing only within the Vercel function lifecycle: it does not
-  provide queue persistence, automatic retries, or survival beyond the function timeout.
-  A public deployment and manual deployed webhook verification remain missing.
-- Manual browser QA of all five dashboard panels has not been recorded.
+  into the runtime as `defer`, and attaches a rejection handler before scheduling the task
+  so a deferred processor failure is caught and logged at the edge. An adapter contract
+  test protects both behaviors. This extends post-response processing only within the
+  Vercel function lifecycle: it does not provide queue persistence, automatic retries, or
+  survival beyond the function timeout. A public deployment and manual deployed webhook
+  verification remain missing.
 - A successful live payout must be verified in an environment where Whop enables payouts.
 
 ### Submission artifacts

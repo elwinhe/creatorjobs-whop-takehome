@@ -23,22 +23,22 @@ export function OrderScreen({ id }: { id: string }) {
     finally { setBusy(false) }
   }
 
-  if (!order) return <div className="grid min-h-64 place-items-center">{error ?? <LoaderCircle className="size-6 animate-spin text-primary" />}</div>
+  if (!order) return <div aria-live="polite" className="grid min-h-64 place-items-center text-center text-sm text-negative">{error ?? <LoaderCircle aria-label="Loading order" className="size-6 animate-spin text-primary" />}</div>
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <section>
         <Badge tone={order.status === 'paid_out' ? 'success' : 'accent'}>{order.status.replaceAll('_', ' ')}</Badge>
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">{order.listing_title}</h1>
-        <p className="mt-4 text-lg text-muted-foreground">{order.seller_name} for {order.buyer_email}</p>
+        <p className="mt-4 break-words text-lg text-muted-foreground">{order.seller_name} for <span className="[overflow-wrap:anywhere]">{order.buyer_email}</span></p>
         <dl className="mt-8 grid gap-4 border-y border-border py-6 sm:grid-cols-3">
           <div><dt className="font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground">Order</dt><dd className="mt-2 font-mono text-sm" title={order.id}>{shortId(order.id)}</dd></div>
           <div><dt className="font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground">Amount</dt><dd className="mt-2 text-xl font-semibold" data-numeric>{money(order.amount_cents, order.currency)}</dd></div>
           <div><dt className="font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground">Refresh</dt><dd className="mt-2 flex items-center gap-2 text-sm"><RotateCcw className="size-3.5 text-primary" /> Every 4 seconds</dd></div>
         </dl>
-        {error && <p className="mt-5 rounded-md bg-negative-subtle px-4 py-3 text-sm text-negative" role="alert">{error}</p>}
-        <div className="mt-7 flex flex-wrap gap-3">
+        {error && <p className="mt-5 rounded-md bg-negative-subtle px-4 py-3 text-sm font-medium text-negative shadow-error" role="alert">{error}</p>}
+        <div className="mt-7 flex flex-wrap items-center gap-3">
           {order.status === 'paid' && <Button disabled={busy} onClick={() => action('accept')}>Accept order</Button>}
-          {order.status === 'in_progress' && <><Input className="max-w-lg" onChange={(event) => setNote(event.target.value)} value={note} /><Button disabled={busy} onClick={() => action('submit')}><Send className="size-4" /> Submit work</Button></>}
+          {order.status === 'in_progress' && <><Input className="min-w-0 flex-1 basis-52" onChange={(event) => setNote(event.target.value)} value={note} /><Button className="max-sm:w-full" disabled={busy} onClick={() => action('submit')}><Send className="size-4" /> Submit work</Button></>}
           {order.status === 'delivered' && <><Button disabled={busy} onClick={() => action('approve')}><CheckCircle2 className="size-4" /> Approve & pay</Button><Button disabled={busy} onClick={() => action('reject')} variant="secondary">Request rework</Button></>}
         </div>
       </section>
