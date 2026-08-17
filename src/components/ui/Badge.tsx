@@ -2,7 +2,6 @@ import type { HTMLAttributes } from 'react'
 import { cn } from '../../lib/cn'
 
 const toneClasses = {
-  accent: 'bg-primary-subtle text-primary-hover',
   danger: 'bg-negative-subtle text-negative',
   neutral: 'bg-foreground/5 text-muted-foreground',
   success: 'bg-positive-subtle text-positive',
