@@ -37,7 +37,7 @@ describe('database contracts', () => {
     const source = await Bun.file(repositoryUrl).text()
 
     expect(source).toMatch(
-      /update payouts set status = 'processing',[\s\S]*where id = \$\{payout\.id\} and status = 'pending' and whop_transfer_id is null[\s\S]*returning id/,
+      /update payouts set status = 'processing',[\s\S]*where id = \$\{payout\.id\}[\s\S]*\(\(status = 'pending' and whop_transfer_id is null\) or status = 'failed'\)[\s\S]*returning id/,
     )
     expect(source).toContain('shouldTransfer: Boolean(claim)')
   })

@@ -112,8 +112,11 @@ class MemoryRepository implements MarketplaceRepository {
     }
     this.events.push({ applied, from, to: 'completed' })
     if (!applied && !['completed', 'payout_pending', 'paid_out', 'payout_failed'].includes(from)) return null
-    const claimed = this.payoutStatus === 'pending' && this.transferId === null
-    if (claimed) this.payoutStatus = 'processing'
+    const claimed = (this.payoutStatus === 'pending' && this.transferId === null) || this.payoutStatus === 'failed'
+    if (claimed) {
+      this.payoutStatus = 'processing'
+      this.transferId = null
+    }
     return {
       amount_cents: 25000,
       currency: 'usd',
@@ -129,7 +132,7 @@ class MemoryRepository implements MarketplaceRepository {
   async markPayoutProcessing(_payoutId: string, targetOrderId: string, transferId: string) {
     this.payoutStatus = 'processing'
     this.transferId = transferId
-    await this.transitionOrder({ actor: 'system', expected: ['completed'], orderId: targetOrderId, to: 'payout_pending' })
+    await this.transitionOrder({ actor: 'system', expected: ['completed', 'payout_failed'], orderId: targetOrderId, to: 'payout_pending' })
   }
 
   async markPayoutSucceeded(_payoutId: string, targetOrderId: string) {
@@ -530,6 +533,32 @@ describe('order lifecycle and payout idempotency', () => {
     expect(repository.orderStatus as OrderStatus).toBe('payout_failed')
     expect(repository.payoutFailedReason).toBe(rawVerificationError)
     expect(fake.transferCalls()).toBe(1)
+  })
+
+  test('retries a failed payout with the same idempotency key and no second payout row', async () => {
+    const repository = new MemoryRepository()
+    repository.orderStatus = 'delivered'
+    const options: { failTransfer?: boolean | string } = { failTransfer: 'insufficient sandbox balance' }
+    const fake = gateway(options)
+    const { app } = testApp(repository, fake.whop)
+
+    expect((await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })).status).toBe(502)
+    expect(repository.orderStatus as OrderStatus).toBe('payout_failed')
+    expect(repository.payoutStatus).toBe('failed')
+
+    options.failTransfer = false
+    const retry = await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })
+    expect(retry.status).toBe(200)
+    expect(await retry.json()).toEqual({ payoutId, transferred: true })
+    expect(repository.orderStatus as OrderStatus).toBe('paid_out')
+    expect(repository.payoutStatus).toBe('succeeded')
+    expect(repository.payoutRows).toBe(1)
+    expect(fake.transferCalls()).toBe(2)
+    expect(fake.transferInputs[0].idempotencyKey).toBe(fake.transferInputs[1].idempotencyKey)
+
+    const third = await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })
+    expect(third.status).toBe(200)
+    expect(fake.transferCalls()).toBe(2)
   })
 
   test('claims the persisted payout before simultaneous approval calls transfer', async () => {
