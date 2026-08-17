@@ -8,12 +8,19 @@
   --creatorjobs-orange-strong: #d9470d;
   --creatorjobs-orange-subtle: #ffebe2;
   --creatorjobs-on-orange: #ffffff;
+  --creatorjobs-rail: #151a17;
+  --creatorjobs-rail-muted: #9da7a0;
+  --creatorjobs-positive: #188653;
+  --creatorjobs-positive-subtle: #e4f5ec;
+  --creatorjobs-negative: #b93822;
+  --creatorjobs-negative-subtle: #fde9e5;
 
   --creatorjobs-radius-sm: 0.5rem;
   --creatorjobs-radius-md: 0.75rem;
   --creatorjobs-radius-lg: 1rem;
   --creatorjobs-shadow-surface: 0 1px 2px rgb(16 21 18 / 6%), 0 18px 50px rgb(16 21 18 / 7%);
   --creatorjobs-motion-fast: 160ms;
+  --creatorjobs-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 @theme inline {
@@ -26,6 +33,12 @@
   --color-primary-hover: var(--creatorjobs-orange-strong);
   --color-primary-subtle: var(--creatorjobs-orange-subtle);
   --color-primary-foreground: var(--creatorjobs-on-orange);
+  --color-rail: var(--creatorjobs-rail);
+  --color-rail-muted: var(--creatorjobs-rail-muted);
+  --color-positive: var(--creatorjobs-positive);
+  --color-positive-subtle: var(--creatorjobs-positive-subtle);
+  --color-negative: var(--creatorjobs-negative);
+  --color-negative-subtle: var(--creatorjobs-negative-subtle);
   --font-sans: 'Manrope Variable', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
   --radius-sm: var(--creatorjobs-radius-sm);
