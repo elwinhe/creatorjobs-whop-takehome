@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Surface } from '../components/ui/Surface'
 import { api, money, shortId } from '../lib/api'
+import { statusTone } from '../lib/status'
 
 type Order = { amount_cents: number; buyer_email: string; currency: string; events: Array<{ applied: boolean; created_at: string; from_status: string; to_status: string }>; id: string; listing_title: string; seller_name: string; status: string }
 
@@ -27,7 +28,7 @@ export function OrderScreen({ id }: { id: string }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <section>
-        <Badge tone={order.status === 'paid_out' ? 'success' : 'accent'}>{order.status.replaceAll('_', ' ')}</Badge>
+        <Badge tone={statusTone(order.status)}>{order.status.replaceAll('_', ' ')}</Badge>
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">{order.listing_title}</h1>
         <p className="mt-4 break-words text-lg text-muted-foreground">{order.seller_name} for <span className="[overflow-wrap:anywhere]">{order.buyer_email}</span></p>
         <dl className="mt-8 grid gap-4 border-y border-border py-6 sm:grid-cols-3">

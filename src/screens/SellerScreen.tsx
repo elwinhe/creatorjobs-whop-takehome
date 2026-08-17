@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Surface } from '../components/ui/Surface'
 import { api, shortId } from '../lib/api'
+import { statusTone } from '../lib/status'
 
 type Seller = {
   display_name: string
@@ -16,7 +17,8 @@ type Seller = {
   whop_company_id: string | null
 }
 
-const steps = ['created', 'link_sent', 'verified', 'payout_ready']
+const statusRank: Record<string, number> = { created: 0, link_sent: 1, verified: 2, payout_ready: 3 }
+const setupSteps = ['Connected account created', 'Onboarding link opened', 'Identity verified']
 
 export function SellerScreen() {
   const initialId = new URLSearchParams(window.location.search).get('id')
@@ -47,12 +49,17 @@ export function SellerScreen() {
   async function accountLink() {
     if (!seller) return
     setBusy(true); setError(null)
+    const popup = window.open('about:blank', '_blank')
+    if (popup) popup.opener = null
     try {
       const link = await api<{ url: string }>(`/api/sellers/${seller.id}/account-link`, { method: 'POST' })
-      window.open(link.url, '_blank', 'noopener,noreferrer')
+      if (popup) popup.location.href = link.url
+      else window.open(link.url, '_blank', 'noopener,noreferrer')
       await load(seller.id)
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Account link failed') }
-    finally { setBusy(false) }
+    } catch (reason) {
+      popup?.close()
+      setError(reason instanceof Error ? reason.message : 'Account link failed')
+    } finally { setBusy(false) }
   }
 
   async function payoutPortal() {
@@ -65,7 +72,8 @@ export function SellerScreen() {
     finally { setPayoutBusy(false) }
   }
 
-  const currentStep = seller ? Math.max(0, steps.indexOf(seller.onboarding_status)) : 0
+  const currentRank = seller ? (statusRank[seller.onboarding_status] ?? 0) : 0
+  const kycComplete = Boolean(seller) && currentRank >= statusRank.verified
   return (
     <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
       <section>
@@ -85,21 +93,21 @@ export function SellerScreen() {
         <div className="flex-1 rounded-sm bg-rail p-6 text-white sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><p className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-rail-muted">Readiness record</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{seller?.display_name ?? 'Awaiting seller'}</h2></div>
-            <Badge tone={seller?.onboarding_status === 'payout_ready' ? 'success' : 'accent'}>{seller?.onboarding_status ?? 'not started'}</Badge>
+            <Badge tone={statusTone(seller?.onboarding_status)}>{seller?.onboarding_status ?? 'not started'}</Badge>
           </div>
           <dl className="mt-7 grid gap-4 border-y border-white/10 py-5 font-mono text-xs sm:grid-cols-2">
             <div className="min-w-0"><dt className="text-rail-muted">Local seller</dt><dd className="mt-1 break-all text-white" title={seller?.id}>{shortId(seller?.id)}</dd></div>
             <div className="min-w-0"><dt className="text-rail-muted">Whop company</dt><dd className="mt-1 break-all text-white" title={seller?.whop_company_id ?? ''}>{shortId(seller?.whop_company_id)}</dd></div>
           </dl>
           <ol className="mt-7 space-y-1">
-            {['Connected account created', 'Onboarding link opened', 'Identity verified', 'Payout method ready'].map((label, index) => {
-              const complete = Boolean(seller) && index <= currentStep
+            {setupSteps.map((label, index) => {
+              const complete = Boolean(seller) && currentRank >= index
               return <li className="flex min-h-12 items-center gap-3" key={label}>{complete ? <span className="grid size-7 place-items-center rounded-full bg-primary text-white"><Check className="size-3.5" /></span> : <Circle className="size-7 text-white/20" />}<span className={complete ? 'text-white' : 'text-rail-muted'}>{label}</span></li>
             })}
           </ol>
           {seller && <div className="mt-7 flex flex-wrap gap-3">
-            <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={accountLink} variant="secondary">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>
-            <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={payoutPortal}>{payoutBusy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} {seller.has_payout_method ? 'Manage payouts' : 'Set up payout method'}</Button>
+            {!kycComplete && <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={accountLink} variant="secondary">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>}
+            {kycComplete && <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={payoutPortal}>{payoutBusy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Manage withdrawals</Button>}
           </div>}
         </div>
       </Surface>
