@@ -48,12 +48,17 @@ export function SellerScreen() {
   async function accountLink() {
     if (!seller) return
     setBusy(true); setError(null)
+    const popup = window.open('about:blank', '_blank')
+    if (popup) popup.opener = null
     try {
       const link = await api<{ url: string }>(`/api/sellers/${seller.id}/account-link`, { method: 'POST' })
-      window.open(link.url, '_blank', 'noopener,noreferrer')
+      if (popup) popup.location.href = link.url
+      else window.open(link.url, '_blank', 'noopener,noreferrer')
       await load(seller.id)
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Account link failed') }
-    finally { setBusy(false) }
+    } catch (reason) {
+      popup?.close()
+      setError(reason instanceof Error ? reason.message : 'Account link failed')
+    } finally { setBusy(false) }
   }
 
   async function payoutPortal() {
