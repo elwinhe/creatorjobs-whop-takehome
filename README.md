@@ -2,6 +2,8 @@
 
 CreatorJobs is a two-sided marketplace prototype for the Whop Technical CSM take-home. Buyers hire creators, creators deliver work, and the platform releases funds only after approval. The operator view reconciles local order state, seller readiness, payouts, webhook deliveries, and failures without calling Whop.
 
+**Live deployment (public):** https://creatorjobs-whop-takehome-elwin-hes-projects.vercel.app — marketplace at `/`, seller onboarding at `/seller`, ops dashboard at `/dashboard`, health at `/api/health`.
+
 The authoritative schema and state machine are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and completed checks and remaining gaps are recorded in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 ## Stack
@@ -11,6 +13,14 @@ The authoritative schema and state machine are in [`docs/ARCHITECTURE.md`](docs/
 - Postgres via `postgres` (Porsager)
 - `@whop/sdk` `0.0.42`, sandbox by default, API version date pinned to `2026-07-20`
 - Bun for package management, scripts, and tests
+
+## Sources and tools used
+
+- [docs.whop.com](https://docs.whop.com) with the **Experimental** API reference as primary source; the installed `@whop/sdk` type definitions as ground truth where docs and behavior diverged
+- Whop sandbox (`sandbox-api.whop.com`) for all live validation: companies, account links, checkouts, webhooks, verifications, transfers
+- `standardwebhooks` for signing in tests and webhook verification via the SDK
+- AI coding assistants (OpenAI Codex and Anthropic Claude) for implementation and debugging, with all Whop behavior validated against the live sandbox rather than taken from model output
+- Vercel for deployment; hosted Postgres for the database
 
 ## Local setup
 
@@ -30,7 +40,7 @@ Fill `.env.local` with isolated sandbox credentials. Vite and Bun load local env
 | `WHOP_API_URL` | yes | Sandbox default: `https://sandbox-api.whop.com/api/v1` |
 | `WHOP_API_KEY` | yes | Server-only platform company API key |
 | `WHOP_COMPANY_ID` | yes | Platform company (`biz_…`) and transfer origin |
-| `WHOP_WEBHOOK_SECRET` | yes | Raw secret copied from webhook registration |
+| `WHOP_WEBHOOK_SECRET` | yes | Raw secret(s) from webhook registration; comma-separated when multiple webhooks sign for this endpoint (e.g. platform events + `child_resource_events`) |
 | `WHOP_API_VERSION` | no | Pinned date; defaults to `2026-07-20` |
 
 Environment validation is strict for every required integration value when the server runtime starts. The migration and seed commands intentionally validate only `DATABASE_URL`; they do not require unrelated Whop configuration. Tests receive non-secret local defaults and inject fake Whop/database boundaries, so `bun test` needs no credentials.
