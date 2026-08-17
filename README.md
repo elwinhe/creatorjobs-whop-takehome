@@ -89,6 +89,10 @@ All outbound Whop SDK operations pass through one gateway and write `api_request
 
 The transfer path records `completed → payout_pending`, retrieves the created transfer for reconciliation, then records `paid_out`. Whop’s current transfer object has no asynchronous status field and no documented `transfer.*` webhook; a failed create/retrieve is captured as both a failed payout and `payout_failed` order transition.
 
+## Written scenarios (Technical CSM)
+
+The four required scenario responses — issue type, customer reply, internal action, urgency, evidence, escalation — are in [`docs/SCENARIOS.md`](./docs/SCENARIOS.md). Each cites incidents actually hit and resolved while building this prototype.
+
 ## Reliability scenarios
 
 ### Duplicate webhook delivery
