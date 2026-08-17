@@ -7,7 +7,7 @@
     "dev": "concurrently --kill-others --names client,server \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "vite",
     "dev:server": "bun --watch server/index.ts",
-    "build": "bun run typecheck && vite build",
+    "build": "bun run build:vercel-handler && bun run typecheck && vite build",
     "build:vercel-handler": "bun build server/vercel.ts --target=node --format=esm --packages=external --minify-whitespace --minify-syntax --sourcemap=none --outfile=api/index.js",
     "typecheck": "tsc -b",
     "lint": "oxlint",

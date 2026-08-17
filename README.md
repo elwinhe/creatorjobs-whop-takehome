@@ -56,7 +56,7 @@ bun test
 bun run build
 ```
 
-Vercel discovers the committed `api/index.js` function before running the frontend build. It is generated from the shared server runtime and must not be edited by hand. Regenerate it after any server runtime change and run the packaging test to detect drift:
+Vercel discovers the committed `api/index.js` function before running the frontend build. It is generated from the shared server runtime and must not be edited by hand. The normal `bun run build` regenerates it before typechecking and building the frontend. After any server runtime change, run the packaging test to detect drift:
 
 ```bash
 bun run build:vercel-handler
@@ -126,7 +126,7 @@ The SDK sends the pinned `Api-Version-Date` automatically. Current Experimental/
 
 ## Vercel deployment readiness
 
-[`api/index.ts`](api/index.ts) exposes the same Hono app through `hono/vercel`; [`api/[...path].ts`](api/[...path].ts) gives nested `/api/*` paths a filesystem function match without rewriting away the Hono route. [`server/index.ts`](server/index.ts) retains the local Node/Bun listener and starts only when executed directly. [`vercel.json`](vercel.json) builds the Vite client and applies the SPA fallback only after Vercel checks filesystem routes.
+[`server/vercel.ts`](server/vercel.ts) exposes the Hono app through `hono/vercel`; the normal build bundles it into the committed [`api/index.js`](api/index.js) Vercel function. [`vercel.json`](vercel.json) routes exact and nested `/api/*` requests to that function before applying the SPA fallback. [`server/index.ts`](server/index.ts) retains the local Node/Bun listener and starts only when executed directly.
 
 Before deploying:
 
