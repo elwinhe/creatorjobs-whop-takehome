@@ -7,8 +7,13 @@ const entrypointUrl = new URL('../api/index.ts', import.meta.url)
 describe('Vercel routing contracts', () => {
   test('routes exact and nested API paths to the Hono function before the SPA fallback', async () => {
     const config = await Bun.file(configUrl).json() as {
+      functions: Record<string, { includeFiles: string }>
       rewrites: { destination: string; source: string }[]
     }
+
+    expect(config.functions).toEqual({
+      'api/**/*.ts': { includeFiles: 'server/**' },
+    })
 
     expect(config.rewrites).toEqual([
       { source: '/api', destination: '/api/index' },
