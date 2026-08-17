@@ -1,6 +1,6 @@
 import Whop, { APIError, type APIPromise } from '@whop/sdk'
 import type { Database } from './db.js'
-import type { ServerEnv } from './env.js'
+import { type ServerEnv, webhookSecrets } from './env.js'
 
 export type WhopCompany = { id: string }
 export type WhopAccountLink = { expires_at: string; url: string }
@@ -63,12 +63,13 @@ function errorEvidence(error: unknown): Pick<RequestLog, 'error' | 'statusCode' 
 }
 
 export function createWhopGateway(sql: Database, env: ServerEnv): WhopGateway {
+  const webhookKeys = webhookSecrets(env).map((secret) => Buffer.from(secret).toString('base64'))
   const client = new Whop({
     apiKey: env.WHOP_API_KEY,
     baseURL: env.WHOP_API_URL,
     maxRetries: 2,
     version: env.WHOP_API_VERSION,
-    webhookKey: Buffer.from(env.WHOP_WEBHOOK_SECRET).toString('base64'),
+    webhookKey: webhookKeys[0],
   })
 
   async function record(entry: RequestLog): Promise<void> {
@@ -156,6 +157,16 @@ export function createWhopGateway(sql: Database, env: ServerEnv): WhopGateway {
     },
     retrieveTransfer: (transferId) =>
       logged('GET', `/transfers/${transferId}`, () => client.transfers.retrieve(transferId)),
-    verifyWebhook: (rawBody, headers) => client.webhooks.unwrap(rawBody, { headers }),
+    verifyWebhook: (rawBody, headers) => {
+      let lastError: unknown = new Error('No webhook secret configured')
+      for (const key of webhookKeys) {
+        try {
+          return client.webhooks.unwrap(rawBody, { headers, key })
+        } catch (error) {
+          lastError = error
+        }
+      }
+      throw lastError
+    },
   }
 }
