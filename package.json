@@ -8,6 +8,7 @@
     "dev:client": "vite",
     "dev:server": "bun --watch server/index.ts",
     "build": "bun run typecheck && vite build",
+    "build:vercel-handler": "bun build server/vercel.ts --target=node --format=esm --packages=external --minify-whitespace --minify-syntax --sourcemap=none --outfile=api/index.js",
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "check": "bun run lint && bun run build",

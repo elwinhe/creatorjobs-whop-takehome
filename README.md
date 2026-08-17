@@ -56,6 +56,13 @@ bun test
 bun run build
 ```
 
+Vercel discovers the committed `api/index.js` function before running the frontend build. It is generated from the shared server runtime and must not be edited by hand. Regenerate it after any server runtime change and run the packaging test to detect drift:
+
+```bash
+bun run build:vercel-handler
+bun test server/vercel.test.ts
+```
+
 Useful routes:
 
 - `/` — active listings and buyer checkout
