@@ -1,11 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 const configUrl = new URL('../vercel.json', import.meta.url)
-const deployableHandlerUrl = new URL('../api/index.js', import.meta.url)
-const sourceEntrypointUrl = new URL('./vercel.ts', import.meta.url)
+const sourceEntrypointUrl = new URL('../api/index.ts', import.meta.url)
 const repositoryRoot = new URL('..', import.meta.url)
 
 describe('Vercel routing contracts', () => {
@@ -34,11 +31,14 @@ describe('Vercel routing contracts', () => {
     expect(spaMatcher.test('/api/health')).toBe(false)
   })
 
-  test('wires waitUntil into the runtime defer hook', async () => {
+  test('exports a Web Handler with the caught waitUntil defer hook', async () => {
     const entrypoint = await Bun.file(sourceEntrypointUrl).text()
 
     expect(entrypoint).toContain("import { waitUntil } from '@vercel/functions'")
-    expect(entrypoint).toContain("waitUntil(task.catch((error) => console.error('Deferred webhook processing failed', error)))")
+    expect(entrypoint).toContain("import { createRuntime } from '../server/index.js'")
+    expect(entrypoint).toContain(
+      "waitUntil(task.catch((error) => console.error('Deferred webhook processing failed', error)))",
+    )
     expect(entrypoint).toContain('createRuntime(process.env, { defer })')
     expect(entrypoint).not.toContain('createRuntime(process.env, { defer: waitUntil })')
     expect(entrypoint).toContain('const handler = handle(runtime.app)')
@@ -46,42 +46,31 @@ describe('Vercel routing contracts', () => {
     expect(entrypoint).not.toContain('export default handle(runtime.app)')
   })
 
-  test('keeps the committed JavaScript handler in sync with its TypeScript source', async () => {
-    const outputDirectory = await mkdtemp(join(tmpdir(), 'creatorjobs-vercel-handler-'))
+  test('uses NodeNext .js specifiers throughout the deployable TypeScript graph', async () => {
+    const relativeTsModuleSpecifier =
+      /(?:from\s+|import\s*\(\s*|import\s+)["'](\.{1,2}\/[^"']+\.ts)["']/g
+    const violations: string[] = []
 
-    try {
-      const result = await Bun.build({
-        entrypoints: [new URL('./vercel.ts', import.meta.url).pathname],
-        format: 'esm',
-        minify: { identifiers: false, syntax: true, whitespace: true },
-        outdir: outputDirectory,
-        packages: 'external',
-        sourcemap: 'none',
-        target: 'node',
+    for (const directory of ['api', 'server', 'db']) {
+      const files = new Bun.Glob('**/*.ts').scan({
+        absolute: true,
+        cwd: new URL(`../${directory}/`, import.meta.url).pathname,
       })
 
-      expect(result.success).toBe(true)
-      expect(result.outputs).toHaveLength(1)
-      expect(await result.outputs[0].text()).toBe(await readFile(deployableHandlerUrl, 'utf8'))
-    } finally {
-      await rm(outputDirectory, { force: true, recursive: true })
+      for await (const file of files) {
+        const source = await Bun.file(file).text()
+        for (const match of source.matchAll(relativeTsModuleSpecifier)) {
+          violations.push(`${file.slice(repositoryRoot.pathname.length)}: ${match[1]}`)
+        }
+      }
     }
+
+    expect(violations).toEqual([])
   })
 
-  test('ships a self-contained JavaScript handler that Node 22 can import and invoke', async () => {
-    const handler = await readFile(deployableHandlerUrl, 'utf8')
-    const runtimeImports = [...handler.matchAll(/(?:from\s*|import\s*)["']([^"']+)["']/g)]
-      .map((match) => match[1])
-
-    expect(runtimeImports.some((specifier) => specifier.startsWith('.'))).toBe(false)
-    expect(runtimeImports.some((specifier) => specifier.endsWith('.ts'))).toBe(false)
-    expect(handler).not.toContain('../server/')
-
-    const nodeMajor = Number(process.versions.node.split('.')[0])
-    expect(nodeMajor).toBeGreaterThanOrEqual(22)
-
+  test('the readable TypeScript handler can be imported and invoked', async () => {
     const script = [
-      `const module = await import(${JSON.stringify(deployableHandlerUrl.href)})`,
+      `const module = await import(${JSON.stringify(sourceEntrypointUrl.href)})`,
       "if (typeof module.default?.fetch !== 'function') throw new Error('Expected a Web Handler with a callable fetch method')",
       "const response = await module.default.fetch(new Request('http://localhost/api/not-found'))",
       "if (response.status !== 404) throw new Error(`Expected 404, received ${response.status}`)",
@@ -89,7 +78,7 @@ describe('Vercel routing contracts', () => {
       "if (body.error !== 'Not found') throw new Error('Unexpected response body')",
     ].join(';')
     const subprocess = Bun.spawn({
-      cmd: ['node', '--input-type=module', '--eval', script],
+      cmd: ['bun', '--eval', script],
       cwd: repositoryRoot.pathname,
       env: { ...process.env, NODE_ENV: 'test' },
       stderr: 'pipe',
@@ -106,12 +95,12 @@ describe('Vercel routing contracts', () => {
 
   test('fails closed when required production environment values are absent', async () => {
     const script = [
-      `try { await import(${JSON.stringify(deployableHandlerUrl.href)}) }`,
+      `try { await import(${JSON.stringify(sourceEntrypointUrl.href)}) }`,
       "catch (error) { process.stderr.write(`${error?.name ?? 'Error'}\\n`); process.exitCode = 2 }",
     ].join(' ')
     const subprocess = Bun.spawn({
-      cmd: ['node', '--input-type=module', '--eval', script],
-      cwd: repositoryRoot.pathname,
+      cmd: ['bun', '--eval', script],
+      cwd: tmpdir(),
       env: { PATH: process.env.PATH ?? '', NODE_ENV: 'production' },
       stderr: 'pipe',
       stdout: 'pipe',

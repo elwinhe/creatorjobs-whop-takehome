@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { approveOrderAndPay, processWebhookEvent } from './domain.ts'
-import type { MarketplaceRepository } from './repository.ts'
-import type { WhopGateway } from './whop.ts'
+import { approveOrderAndPay, processWebhookEvent } from './domain.js'
+import type { MarketplaceRepository } from './repository.js'
+import type { WhopGateway } from './whop.js'
 
 const idSchema = z.string().uuid()
 const sellerBodySchema = z.object({

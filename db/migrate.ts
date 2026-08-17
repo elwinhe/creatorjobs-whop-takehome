@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { createDatabase } from '../server/db.ts'
-import { formatEnvError, parseDatabaseEnv } from '../server/env.ts'
+import { createDatabase } from '../server/db.js'
+import { formatEnvError, parseDatabaseEnv } from '../server/env.js'
 
 const migrationsDirectory = fileURLToPath(new URL('./migrations', import.meta.url))
 
