@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, LayoutDashboard, Store, UserRoundPlus } from 'lucide-react'
+import { LayoutDashboard, Store, UserRoundPlus } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
@@ -16,9 +16,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="bg-rail text-white shadow-rail">
         <div className="mx-auto flex max-w-[90rem] flex-col gap-4 px-4 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-10">
           <a className="flex min-h-10 min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-semibold tracking-[-0.03em]" href="/">
-            <span className="grid size-10 place-items-center rounded-md bg-primary text-white">
-              <BriefcaseBusiness aria-hidden="true" className="size-4.5" />
-            </span>
+            <img alt="" aria-hidden="true" className="size-10" src="/favicon.svg" />
             <span>CreatorJobs</span>
             <span className="font-mono text-[0.625rem] uppercase tracking-[0.14em] text-rail-muted">Sandbox ops</span>
           </a>
