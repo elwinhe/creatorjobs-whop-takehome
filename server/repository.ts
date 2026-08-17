@@ -167,7 +167,9 @@ export class PostgresMarketplaceRepository implements MarketplaceRepository {
   async setAccountLink(sellerId: string, url: string): Promise<void> {
     await this.sql`
       update seller_profiles
-      set last_account_link_url = ${url}, onboarding_status = 'link_sent', updated_at = now()
+      set last_account_link_url = ${url},
+        onboarding_status = case when onboarding_status = 'created' then 'link_sent' else onboarding_status end,
+        updated_at = now()
       where id = ${sellerId}
     `
   }
