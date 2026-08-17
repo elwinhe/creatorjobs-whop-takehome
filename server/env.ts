@@ -12,6 +12,12 @@ const baseEnvironmentSchema = z.object({
   WHOP_WEBHOOK_SECRET: z.string().min(1),
 })
 
+export function webhookSecrets(env: Pick<ServerEnv, 'WHOP_WEBHOOK_SECRET'>): string[] {
+  return env.WHOP_WEBHOOK_SECRET.split(',')
+    .map((secret) => secret.trim())
+    .filter((secret) => secret.length > 0)
+}
+
 const databaseEnvironmentSchema = baseEnvironmentSchema.pick({ DATABASE_URL: true })
 
 export type ServerEnv = z.infer<typeof baseEnvironmentSchema>
