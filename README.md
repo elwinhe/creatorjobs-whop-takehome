@@ -2,7 +2,7 @@
 
 CreatorJobs is a two-sided marketplace prototype for the Whop Technical CSM take-home. Buyers hire creators, creators deliver work, and the platform releases funds only after approval. The operator view reconciles local order state, seller readiness, payouts, webhook deliveries, and failures without calling Whop.
 
-The product contract is [`docs/PRD.md`](docs/PRD.md); the authoritative schema and state machine are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+The authoritative schema and state machine are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), and completed checks and remaining gaps are recorded in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 ## Stack
 
@@ -44,7 +44,7 @@ bun run migrate
 bun run seed
 ```
 
-The deterministic seed inserts one admin, two buyers, two sellers/profiles, and three listings. Both commands are safe to rerun: applied migrations are skipped and seed conflicts are no-ops. C0 database health passed against the isolated hosted Postgres database. C1 migration and seed passed twice there, with final counts `users=5`, `seller_profiles=2`, `listings=3`, and every other marketplace/evidence table at `0`.
+The deterministic seed inserts one admin, two buyers, two sellers/profiles, and three listings. Both commands are safe to rerun: applied migrations are skipped and seed conflicts are no-ops. Database health passed against the isolated hosted Postgres database. Migration and seed passed twice there, with final counts `users=5`, `seller_profiles=2`, `listings=3`, and every other marketplace/evidence table at `0`.
 
 ## Run and validate
 
@@ -71,8 +71,12 @@ Postgres is authoritative for all marketplace entities and transitions. A listin
 ```text
 listing → local order (price snapshot) → Whop checkout
        → verified payment webhook → paid → in progress → delivered
-       → buyer approval → one local payout intent → Whop transfer → paid out
+       → buyer approval → one local payout intent → Whop transfer → paid out*
 ```
+
+`*` The successful-transfer path is covered by automated tests. Whop currently does not
+support payouts in sandbox, so the live validation stopped at a rejected transfer and did
+not reach `paid_out`.
 
 All outbound Whop SDK operations pass through one gateway and write `api_request_log`, including HTTP status, request ID when supplied, and failure text. Seller links may be regenerated safely. Checkout and transfer calls use stable idempotency keys. `payouts.order_id` is unique, and approval atomically changes the persisted payout from `pending` to `processing` before the network call. Only the request that acquires that database claim may call Whop; simultaneous approvals reuse the same payout but cannot both issue a transfer request.
 
@@ -108,6 +112,7 @@ Implementation was checked against current official Whop documentation and the i
 - [Checkout configurations](https://docs.whop.com/api-reference/checkout-configurations/checkout-configuration) — inline one-time plan, inherited metadata, purchase and redirect URLs
 - [Webhooks](https://docs.whop.com/developer/guides/webhooks) — Standard Webhooks signature verification and fast acknowledgement
 - [Manual connected-account payouts](https://docs.whop.com/developer/platforms/manual-payouts) — KYC/payout-method prerequisites and platform balance
+- [Sandbox testing](https://docs.whop.com/developer/guides/sandbox) — environment setup and the current payout limitation
 
 The SDK sends the pinned `Api-Version-Date` automatically. Current Experimental/beta surfaces are isolated behind the gateway. Transfer polling/retrieval is the documented fallback because no `transfer.*` event is present in the current SDK webhook union. No Stable REST fallback is currently needed.
 
@@ -119,11 +124,11 @@ Before deploying:
 
 1. Add every server environment variable to the Vercel project.
 2. Run migration and seed commands against the reviewed isolated hosted database.
-3. Verify the platform sandbox company is KYC-ready and has enough balance.
+3. Verify platform KYC readiness, but do not treat sandbox transfer success as a deployment gate: Whop documents sandbox payouts as unavailable.
 4. Register `https://<deployment>/api/webhooks/whop` for the event set in Architecture §4, then store the returned secret once.
-5. Run checkout, replay, tamper, out-of-order, and payout scenarios against the deployed endpoint.
+5. Run checkout, replay, tamper, and out-of-order scenarios against the deployed endpoint. Keep transfer success under automated coverage until a payout-capable environment is available.
 
-Automated C2/C3/C4/C5/C6 contracts pass. No live seller onboarding, checkout, webhook registration/delivery, hosted KYC link, transfer, real Whop `biz_…` ID, or Vercel deployment is claimed: live C2/C3/C4/C5 and C7 remain gated on Whop sandbox and Vercel credentials. See [`docs/LIVE_GATES.md`](docs/LIVE_GATES.md) for the exact evidence and remaining checks.
+Live validation passed seller onboarding, hosted checkout, payment confirmation, webhook reliability, and the local order lifecycle through `completed`. The live payout attempt reached Whop but was rejected because sandbox payouts are unavailable; no successful transfer or `paid_out` state is claimed. Dashboard and deployment routing contracts pass, but manual dashboard browser QA and a public Vercel deployment remain unverified. See [`docs/VALIDATION.md`](docs/VALIDATION.md) for the evidence and remaining requirements.
 
 ## Design system
 
@@ -134,3 +139,8 @@ tokens → primitives → marketplace / onboarding / order / dashboard screens
 ```
 
 The UI preserves the cool canvas, near-black system rail, and orange action/status accent. Interactive targets are at least 40px, focus is visible, numbers are tabular, animations use interruptible property-specific transitions, and reduced-motion preferences are honored.
+
+## Tools and references used
+
+Implementation and validation used official Whop documentation, the installed Whop SDK
+types, OpenAI Codex, and Zo.
