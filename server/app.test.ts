@@ -20,11 +20,15 @@ import type { WhopGateway } from './whop.js'
 const orderId = '40000000-0000-4000-8000-000000000001'
 const sellerId = '20000000-0000-4000-8000-000000000001'
 const payoutId = '50000000-0000-4000-8000-000000000001'
+const rawVerificationError = '400 {"error":{"type":"bad_request","message":"Please verify your business before transferring funds. Complete verification at https://whop.com/payouts/biz_test_company/verify/"}}'
+
+type DashboardData = Record<'orders' | 'sellers' | 'payouts' | 'webhooks' | 'errors', unknown[]>
 
 class MemoryRepository implements MarketplaceRepository {
   accountLinkCalls = 0
   createdSeller: { displayName: string; email: string } | null = null
   createdOrder: { buyerEmail: string; listingId: string } | null = null
+  dashboard: DashboardData = { orders: [], sellers: [], payouts: [], webhooks: [], errors: [] }
   events: { applied: boolean; from: OrderStatus; to: OrderStatus }[] = []
   orderStatus: OrderStatus = 'pending_payment'
   payoutFailedReason: string | null = null
@@ -65,7 +69,7 @@ class MemoryRepository implements MarketplaceRepository {
   }
   async setCheckout(_orderId: string, checkoutId: string) { this.savedCheckoutId = checkoutId }
   async getOrder() { return { id: orderId, status: this.orderStatus } }
-  async getDashboard() { return { orders: [], sellers: [], payouts: [], webhooks: [], errors: [] } }
+  async getDashboard() { return this.dashboard }
 
   async transitionOrder(input: {
     actor: Actor
@@ -165,7 +169,7 @@ class MemoryRepository implements MarketplaceRepository {
   }
 }
 
-function gateway(options: { failAccountLinkUseCase?: 'account_onboarding' | 'payouts_portal'; failTransfer?: boolean } = {}) {
+function gateway(options: { failAccountLinkUseCase?: 'account_onboarding' | 'payouts_portal'; failTransfer?: boolean | string } = {}) {
   const rawSecret = 'creatorjobs-test-secret'
   const encodedSecret = Buffer.from(rawSecret).toString('base64')
   const verifier = new Whop({ apiKey: 'test', webhookKey: encodedSecret })
@@ -192,7 +196,7 @@ function gateway(options: { failAccountLinkUseCase?: 'account_onboarding' | 'pay
     async createTransfer(input) {
       transferCalls += 1
       transferInputs.push(input)
-      if (options.failTransfer) throw new Error('insufficient sandbox balance')
+      if (options.failTransfer) throw new Error(typeof options.failTransfer === 'string' ? options.failTransfer : 'insufficient sandbox balance')
       return { id: 'tr_test' }
     },
     async retrieveTransfer(transferId: string) {
@@ -512,12 +516,19 @@ describe('order lifecycle and payout idempotency', () => {
   test('captures a transfer failure without a second intent', async () => {
     const repository = new MemoryRepository()
     repository.orderStatus = 'delivered'
-    const fake = gateway({ failTransfer: true })
+    const fake = gateway({ failTransfer: rawVerificationError })
     const { app } = testApp(repository, fake.whop)
     const response = await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })
+    const body = await response.json() as { error: string }
+
     expect(response.status).toBe(502)
+    expect(body).toEqual({ error: 'Payout processing failed' })
+    expect(body.error).not.toContain('verify your business')
+    expect(body.error).not.toContain('http')
+    expect(body.error).not.toContain('biz_')
+    expect(body.error).not.toContain('{')
     expect(repository.orderStatus as OrderStatus).toBe('payout_failed')
-    expect(repository.payoutFailedReason).toBe('insufficient sandbox balance')
+    expect(repository.payoutFailedReason).toBe(rawVerificationError)
     expect(fake.transferCalls()).toBe(1)
   })
 
@@ -552,5 +563,73 @@ describe('operations dashboard', () => {
     expect(fake.companyInputs).toHaveLength(0)
     expect(fake.transferInputs).toHaveLength(0)
     expect(fake.retrievedTransfers).toHaveLength(0)
+  })
+
+  test('returns source-aware safe error messages without changing dashboard row shape', async () => {
+    const repository = new MemoryRepository()
+    repository.dashboard = {
+      orders: [{ id: orderId, status: 'payout_failed' }],
+      sellers: [{ id: sellerId, onboarding_status: 'payout_ready' }],
+      payouts: [
+        { failure_reason: rawVerificationError, id: 'verification-payout', status: 'failed' },
+        { failure_reason: '503 upstream transfer service unavailable', id: 'generic-payout', status: 'failed' },
+      ],
+      webhooks: [{ error: '500 {"error":"failed at https://whop.com/payouts/biz_secret"}', id: 'failed-webhook', status: 'error' }],
+      errors: [
+        { error: rawVerificationError, id: 'verification-api', source: 'api', status_code: 400, summary: 'POST /transfers' },
+        { error: 'upstream request timed out', id: 'generic-api', source: 'api', status_code: 503, summary: 'GET /transfers/tr_test' },
+        { error: 'Rejected: order is not delivered', id: 'safe-transition', source: 'transition', status_code: null, summary: 'paid → completed' },
+      ],
+    }
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request('/api/dashboard')
+    const body = await response.json() as DashboardData
+    const payouts = body.payouts as Array<Record<string, unknown>>
+    const webhooks = body.webhooks as Array<Record<string, unknown>>
+    const errors = body.errors as Array<Record<string, unknown>>
+
+    expect(response.status).toBe(200)
+    expect(payouts[0]).toEqual({
+      failure_reason: 'Platform business verification is required before transfers can be processed.',
+      id: 'verification-payout',
+      status: 'failed',
+    })
+    expect(payouts[1]?.failure_reason).toBe('Payout processing failed. Review internal logs for details.')
+    expect(webhooks[0]?.error).toBe('Webhook processing failed. Review internal logs for details.')
+    expect(errors[0]?.error).toBe('Platform business verification is required before transfers can be processed.')
+    expect(errors[1]?.error).toBe('Provider request failed. Review internal logs for details.')
+    expect(errors[2]?.error).toBe('Rejected: order is not delivered')
+    expect(body.orders).toEqual(repository.dashboard.orders)
+    expect(body.sellers).toEqual(repository.dashboard.sellers)
+
+    const serialized = JSON.stringify(body)
+    expect(serialized).not.toContain('verify your business')
+    expect(serialized).not.toContain('https://')
+    expect(serialized).not.toContain('biz_')
+    expect(serialized).not.toContain('upstream request timed out')
+  })
+
+  test('sanitizes known and generic payout-failure transition errors as payout failures', async () => {
+    const repository = new MemoryRepository()
+    repository.dashboard.errors = [
+      { error: rawVerificationError, id: 'verification-payout-transition', source: 'transition', status_code: null, summary: 'completed → payout_failed' },
+      { error: 'upstream request timed out', id: 'generic-payout-transition', source: 'transition', status_code: null, summary: 'payout_pending → payout_failed' },
+    ]
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request('/api/dashboard')
+    const body = await response.json() as DashboardData
+    const errors = body.errors as Array<Record<string, unknown>>
+
+    expect(response.status).toBe(200)
+    expect(errors[0]?.error).toBe('Platform business verification is required before transfers can be processed.')
+    expect(errors[1]?.error).toBe('Payout processing failed. Review internal logs for details.')
+    expect(JSON.stringify(errors)).not.toContain('verify your business')
+    expect(JSON.stringify(errors)).not.toContain('upstream request timed out')
+    expect((repository.dashboard.errors[0] as Record<string, unknown>).error).toBe(rawVerificationError)
+    expect((repository.dashboard.errors[1] as Record<string, unknown>).error).toBe('upstream request timed out')
   })
 })
