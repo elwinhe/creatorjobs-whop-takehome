@@ -41,6 +41,9 @@ describe('Vercel routing contracts', () => {
     expect(entrypoint).toContain("waitUntil(task.catch((error) => console.error('Deferred webhook processing failed', error)))")
     expect(entrypoint).toContain('createRuntime(process.env, { defer })')
     expect(entrypoint).not.toContain('createRuntime(process.env, { defer: waitUntil })')
+    expect(entrypoint).toContain('const handler = handle(runtime.app)')
+    expect(entrypoint).toContain('export default {\n  fetch(request: Request)')
+    expect(entrypoint).not.toContain('export default handle(runtime.app)')
   })
 
   test('keeps the committed JavaScript handler in sync with its TypeScript source', async () => {
@@ -79,7 +82,8 @@ describe('Vercel routing contracts', () => {
 
     const script = [
       `const module = await import(${JSON.stringify(deployableHandlerUrl.href)})`,
-      "const response = await module.default(new Request('http://localhost/api/not-found'))",
+      "if (typeof module.default?.fetch !== 'function') throw new Error('Expected a Web Handler with a callable fetch method')",
+      "const response = await module.default.fetch(new Request('http://localhost/api/not-found'))",
       "if (response.status !== 404) throw new Error(`Expected 404, received ${response.status}`)",
       "const body = await response.json()",
       "if (body.error !== 'Not found') throw new Error('Unexpected response body')",

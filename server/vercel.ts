@@ -7,5 +7,10 @@ function defer(task: Promise<void>): void {
 }
 
 const runtime = createRuntime(process.env, { defer })
+const handler = handle(runtime.app)
 
-export default handle(runtime.app)
+export default {
+  fetch(request: Request) {
+    return handler(request)
+  },
+}
