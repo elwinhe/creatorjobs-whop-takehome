@@ -14,10 +14,12 @@ describe('Vercel routing contracts', () => {
     expect(await Bun.file(catchAllUrl).text()).toContain("export { default } from './index.ts'")
   })
 
-  test('extends deferred webhook processing with the Vercel lifecycle', async () => {
+  test('wires waitUntil into the runtime defer hook', async () => {
     const entrypoint = await Bun.file(entrypointUrl).text()
 
     expect(entrypoint).toContain("import { waitUntil } from '@vercel/functions'")
-    expect(entrypoint).toContain('createRuntime(process.env, { defer: waitUntil })')
+    expect(entrypoint).toContain("waitUntil(task.catch((error) => console.error('Deferred webhook processing failed', error)))")
+    expect(entrypoint).toContain('createRuntime(process.env, { defer })')
+    expect(entrypoint).not.toContain('createRuntime(process.env, { defer: waitUntil })')
   })
 })
