@@ -528,21 +528,22 @@ describe('order lifecycle and payout idempotency', () => {
     expect(fake.transferCalls()).toBe(1)
   })
 
-  test('captures a transfer failure without a second intent', async () => {
+  test('approval succeeds even when the transfer fails, recording the failure for ops', async () => {
     const repository = new MemoryRepository()
     repository.orderStatus = 'delivered'
     const fake = gateway({ failTransfer: rawVerificationError })
     const { app } = testApp(repository, fake.whop)
     const response = await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })
-    const body = await response.json() as { error: string }
+    const body = await response.json() as { error?: string; payoutId: string; transferred: boolean }
 
-    expect(response.status).toBe(502)
-    expect(body).toEqual({ error: 'Payout processing failed' })
-    expect(body.error).not.toContain('verify your business')
-    expect(body.error).not.toContain('http')
-    expect(body.error).not.toContain('biz_')
-    expect(body.error).not.toContain('{')
+    // The buyer's approval is decoupled from settlement: a transfer failure is not
+    // thrown at the buyer, so approval returns 200 and leaks no upstream detail.
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ payoutId, transferred: false })
+    expect(body.error).toBeUndefined()
+    // The failure is still recorded honestly for the ops dashboard and retry path.
     expect(repository.orderStatus as OrderStatus).toBe('payout_failed')
+    expect(repository.payoutStatus).toBe('failed')
     expect(repository.payoutFailedReason).toBe(rawVerificationError)
     expect(fake.transferCalls()).toBe(1)
   })
@@ -554,7 +555,7 @@ describe('order lifecycle and payout idempotency', () => {
     const fake = gateway(options)
     const { app } = testApp(repository, fake.whop)
 
-    expect((await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })).status).toBe(502)
+    expect((await app.request(`/api/orders/${orderId}/approve`, { method: 'POST' })).status).toBe(200)
     expect(repository.orderStatus as OrderStatus).toBe('payout_failed')
     expect(repository.payoutStatus).toBe('failed')
 

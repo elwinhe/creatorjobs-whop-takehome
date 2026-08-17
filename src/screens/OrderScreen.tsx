@@ -13,13 +13,18 @@ export function OrderScreen({ id }: { id: string }) {
   const [order, setOrder] = useState<Order | null>(null)
   const [note, setNote] = useState('Final deliverable: https://example.com/delivery')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const load = useCallback(() => api<Order>(`/api/orders/${id}`).then(setOrder).catch((reason: Error) => setError(reason.message)), [id])
   useEffect(() => { void load(); const timer = window.setInterval(load, 4_000); return () => window.clearInterval(timer) }, [load])
 
   async function action(name: 'accept' | 'submit' | 'approve' | 'reject') {
-    setBusy(true); setError(null)
-    try { await api(`/api/orders/${id}/${name}`, { body: name === 'submit' ? JSON.stringify({ note }) : undefined, method: 'POST' }); await load() }
+    setBusy(true); setError(null); setNotice(null)
+    try {
+      const result = await api<{ transferred?: boolean }>(`/api/orders/${id}/${name}`, { body: name === 'submit' ? JSON.stringify({ note }) : undefined, method: 'POST' })
+      if (name === 'approve') setNotice(result.transferred ? 'Approved. The seller has been paid out.' : 'Approved. The seller payout is settling with Whop and will complete automatically.')
+      await load()
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Action failed') }
     finally { setBusy(false) }
   }
@@ -37,6 +42,7 @@ export function OrderScreen({ id }: { id: string }) {
           <div><dt className="font-mono text-[0.625rem] uppercase tracking-[0.12em] text-muted-foreground">Refresh</dt><dd className="mt-2 flex items-center gap-2 text-sm"><RotateCcw className="size-3.5 text-primary" /> Every 4 seconds</dd></div>
         </dl>
         {error && <p className="mt-5 rounded-md bg-negative-subtle px-4 py-3 text-sm font-medium text-negative shadow-error" role="alert">{error}</p>}
+        {notice && !error && <p className="mt-5 rounded-md border border-border bg-muted px-4 py-3 text-sm font-medium text-muted-foreground" role="status">{notice}</p>}
         <div className="mt-7 flex flex-wrap items-center gap-3">
           {order.status === 'paid' && <Button disabled={busy} onClick={() => action('accept')}>Accept order</Button>}
           {order.status === 'in_progress' && <><Input className="min-w-0 flex-1 basis-52" onChange={(event) => setNote(event.target.value)} value={note} /><Button className="max-sm:w-full" disabled={busy} onClick={() => action('submit')}><Send className="size-4" /> Submit work</Button></>}
