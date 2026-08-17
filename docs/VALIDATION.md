@@ -15,7 +15,7 @@ from requirements that remain incomplete or unverified.
 | Webhooks | Live passed | Signed success, replay, tamper rejection, and out-of-order delivery behavior were observed through a temporary HTTPS endpoint. |
 | Lifecycle and payout | Lifecycle live passed; transfer provider-blocked | The order reached `completed` and created one payout intent. Whop rejected the sandbox transfer; no live `paid_out` state is claimed. Transfer success and idempotency are covered by automated tests. |
 | Operations dashboard | Automated passed; manual browser QA unverified | The five database-only panels and account-link regeneration have contract coverage. |
-| Deployment | Build/routing passed; public deployment missing | Production build and routing contracts pass, but no public Vercel deployment exists. |
+| Deployment | Build/routing passed; public deployment missing | Production build, routing contracts, and Vercel `waitUntil` adapter wiring pass automated checks, but no public Vercel deployment or manual deployed verification exists. |
 
 ## Live evidence
 
@@ -44,7 +44,7 @@ external identifiers are included in this report.
 
 ## Automated evidence
 
-The final validation run passed 20 tests with 77 assertions, plus lint, typecheck, and the
+The final validation run passed 21 tests with 79 assertions, plus lint, typecheck, and the
 production build. Coverage includes:
 
 - webhook signature verification, duplicate delivery, tampered-body rejection, and
@@ -52,7 +52,7 @@ production build. Coverage includes:
 - mocked transfer success, upstream failure capture, duplicate approval, and simultaneous
   approval ownership/idempotency;
 - the five-panel database-only operations dashboard and account-link regeneration; and
-- Vercel/API routing and production-build contracts.
+- Vercel/API routing, `waitUntil` adapter wiring, and production-build contracts.
 
 Automated coverage is not evidence of a successful live transfer, a completed manual
 dashboard browser pass, or a public deployment.
@@ -71,9 +71,11 @@ remain unverified. Mocked transfer tests establish application behavior only.
 - Seller payout setup is partial. CreatorJobs creates an `account_onboarding` KYC link and
   observes payout-method webhooks, but it exposes neither a `payouts_portal` link nor an
   embedded add-payout-method flow.
-- The webhook handler defers processing with an unawaited promise in the default runtime.
-  This worked in the persistent local Node/Bun process, but post-response execution on
-  Vercel is not proven with `waitUntil` or an external queue.
+- The Vercel entrypoint passes [`waitUntil`](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package)
+  into the runtime as `defer`, and an adapter contract test protects that wiring. This
+  extends post-response processing only within the Vercel function lifecycle: it does not
+  provide queue persistence, automatic retries, or survival beyond the function timeout.
+  A public deployment and manual deployed webhook verification remain missing.
 - Manual browser QA of all five dashboard panels has not been recorded.
 - A successful live payout must be verified in an environment where Whop enables payouts.
 
