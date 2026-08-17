@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { approveOrderAndPay, processWebhookEvent } from './domain.js'
+import { dashboardView } from './operations.js'
 import type { MarketplaceRepository } from './repository.js'
 import type { WhopGateway } from './whop.js'
 
@@ -194,8 +195,8 @@ export function createMarketplaceApp(dependencies: AppDependencies): Hono {
         orderId,
       )
       return result ? context.json(result) : context.json({ error: 'Order cannot be approved' }, 409)
-    } catch (error) {
-      return context.json({ error: error instanceof Error ? error.message : 'Payout failed' }, 502)
+    } catch {
+      return context.json({ error: 'Payout processing failed' }, 502)
     }
   })
 
@@ -223,7 +224,7 @@ export function createMarketplaceApp(dependencies: AppDependencies): Hono {
     return context.json({ accepted: true, duplicate: inbox.duplicate })
   })
 
-  app.get('/api/dashboard', async (context) => context.json(await dependencies.repository.getDashboard()))
+  app.get('/api/dashboard', async (context) => context.json(dashboardView(await dependencies.repository.getDashboard())))
 
   app.notFound((context) => context.json({ error: 'Not found' }, 404))
   return app
