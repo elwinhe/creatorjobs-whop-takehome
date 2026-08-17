@@ -196,7 +196,7 @@ export function createMarketplaceApp(dependencies: AppDependencies): Hono {
       )
       return result ? context.json(result) : context.json({ error: 'Order cannot be approved' }, 409)
     } catch {
-      return context.json({ error: 'Payout processing failed' }, 502)
+      return context.json({ error: 'Approval failed' }, 502)
     }
   })
 

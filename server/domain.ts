@@ -121,6 +121,8 @@ export async function approveOrderAndPay(
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     await repository.markPayoutFailed(payout.id, orderId, reason)
-    throw error
+    // Buyer approval already succeeded and is committed; a transfer failure is a
+    // retryable settlement concern surfaced to ops, not an error thrown at the buyer.
+    return { payoutId: payout.id, transferred: false }
   }
 }
