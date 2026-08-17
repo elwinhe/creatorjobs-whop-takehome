@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import Whop from '@whop/sdk'
 import { Webhook } from 'standardwebhooks'
-import { createMarketplaceApp } from './app.ts'
-import { approveOrderAndPay } from './domain.ts'
+import { createMarketplaceApp } from './app.js'
+import { approveOrderAndPay } from './domain.js'
 import type {
   Actor,
   ListingView,
@@ -14,8 +14,8 @@ import type {
   TransitionResult,
   WebhookInboxInput,
   WebhookInboxResult,
-} from './repository.ts'
-import type { WhopGateway } from './whop.ts'
+} from './repository.js'
+import type { WhopGateway } from './whop.js'
 
 const orderId = '40000000-0000-4000-8000-000000000001'
 const sellerId = '20000000-0000-4000-8000-000000000001'

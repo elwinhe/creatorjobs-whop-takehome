@@ -56,6 +56,13 @@ bun test
 bun run build
 ```
 
+Vercel discovers the readable TypeScript Web Handler in `api/index.ts` and traces its imports through the shared server runtime. Relative TypeScript imports and re-exports in `api/`, `server/`, and `db/` use NodeNext `.js` specifiers so Vercel and TypeScript follow the standard source graph without a generated handler.
+
+```bash
+bun test server/vercel.test.ts
+bun run build
+```
+
 Useful routes:
 
 - `/` — active listings and buyer checkout
@@ -119,7 +126,7 @@ The SDK sends the pinned `Api-Version-Date` automatically. Current Experimental/
 
 ## Vercel deployment readiness
 
-[`api/index.ts`](api/index.ts) exposes the same Hono app through `hono/vercel`; [`api/[...path].ts`](api/[...path].ts) gives nested `/api/*` paths a filesystem function match without rewriting away the Hono route. [`server/index.ts`](server/index.ts) retains the local Node/Bun listener and starts only when executed directly. [`vercel.json`](vercel.json) builds the Vite client and applies the SPA fallback only after Vercel checks filesystem routes.
+[`api/index.ts`](api/index.ts) exposes the shared Hono runtime as a Vercel Web Handler. Its NodeNext `.js` relative specifiers resolve to the TypeScript sources during compilation, allowing Vercel to trace the source graph directly without a committed bundle or `includeFiles`. [`vercel.json`](vercel.json) routes exact and nested `/api/*` requests to that function before applying the SPA fallback. [`server/index.ts`](server/index.ts) retains the local Node/Bun listener and starts only when executed directly.
 
 Before deploying:
 

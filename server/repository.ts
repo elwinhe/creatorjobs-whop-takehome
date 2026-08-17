@@ -1,5 +1,5 @@
 import type postgres from 'postgres'
-import type { Database } from './db.ts'
+import type { Database } from './db.js'
 
 export type OrderStatus =
   | 'pending_payment'

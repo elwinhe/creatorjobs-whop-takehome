@@ -1,5 +1,5 @@
-import { createDatabase } from '../server/db.ts'
-import { formatEnvError, parseDatabaseEnv } from '../server/env.ts'
+import { createDatabase } from '../server/db.js'
+import { formatEnvError, parseDatabaseEnv } from '../server/env.js'
 
 const ids = {
   admin: '10000000-0000-4000-8000-000000000001',

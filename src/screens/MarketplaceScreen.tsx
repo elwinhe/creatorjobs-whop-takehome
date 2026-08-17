@@ -1,6 +1,5 @@
 import { ArrowRight, Film, LoaderCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Surface } from '../components/ui/Surface'

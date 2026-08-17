@@ -1,6 +1,6 @@
 import Whop, { APIError, type APIPromise } from '@whop/sdk'
-import type { Database } from './db.ts'
-import type { ServerEnv } from './env.ts'
+import type { Database } from './db.js'
+import type { ServerEnv } from './env.js'
 
 export type WhopCompany = { id: string }
 export type WhopAccountLink = { expires_at: string; url: string }

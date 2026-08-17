@@ -1,9 +1,9 @@
 import { serve } from '@hono/node-server'
-import { createMarketplaceApp } from './app.ts'
-import { closeDatabase, createDatabase } from './db.ts'
-import { formatEnvError, parseServerEnv } from './env.ts'
-import { PostgresMarketplaceRepository } from './repository.ts'
-import { createWhopGateway } from './whop.ts'
+import { createMarketplaceApp } from './app.js'
+import { closeDatabase, createDatabase } from './db.js'
+import { formatEnvError, parseServerEnv } from './env.js'
+import { PostgresMarketplaceRepository } from './repository.js'
+import { createWhopGateway } from './whop.js'
 
 export function createRuntime(
   source: NodeJS.ProcessEnv = process.env,

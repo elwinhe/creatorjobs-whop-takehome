@@ -1,5 +1,5 @@
-import type { MarketplaceRepository, OrderStatus } from './repository.ts'
-import type { WhopGateway } from './whop.ts'
+import type { MarketplaceRepository, OrderStatus } from './repository.js'
+import type { WhopGateway } from './whop.js'
 
 type JsonObject = Record<string, unknown>
 

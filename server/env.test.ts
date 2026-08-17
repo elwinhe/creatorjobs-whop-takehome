@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseDatabaseEnv, parseServerEnv } from './env.ts'
+import { parseDatabaseEnv, parseServerEnv } from './env.js'
 
 describe('server environment', () => {
   test('rejects a production environment with missing secrets', () => {
