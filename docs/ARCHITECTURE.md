@@ -17,7 +17,8 @@ referenced by ID + metadata; they never replace local records.
 |---|---|
 | Platform (CreatorJobs) | Our company (`WHOP_COMPANY_ID`), Company API key |
 | Seller | **Connected account**: child company via `companies.create({ parent_company_id, email, title, metadata: { seller_id } })` → `biz_…` |
-| Seller KYC / payout setup | `accountLinks.create({ company_id, use_case: "account_onboarding", return_url, refresh_url })` → hosted KYC; readiness tracked via verifications + payout methods |
+| Seller KYC | `accountLinks.create({ company_id, use_case: "account_onboarding", return_url, refresh_url })` → hosted onboarding |
+| Seller payout setup | `accountLinks.create({ company_id, use_case: "payouts_portal", return_url, refresh_url })` → hosted payout-method and withdrawal management; readiness tracked via signed verification + payout-method webhooks |
 | Buyer | Plain Whop user/member (captured from payment). No connected account — only payout recipients need one |
 | Listing price | Inline one-time plan inside a checkout configuration |
 | Buyer checkout | `checkoutConfigurations.create({ plan: { initial_price, plan_type: "one_time" }, metadata: { order_id } })` → redirect to `purchase_url`. Payments created from the session **inherit the metadata**, which is how webhooks map back to our order |
@@ -223,6 +224,16 @@ Subscribed events: `payment.succeeded`, `payment.failed`, `payment.pending`,
 `payout_account.status_updated`, `identity_profile.updated`.
 
 Webhook secret is returned once at webhook creation → `WHOP_WEBHOOK_SECRET`.
+
+### Hosted seller payout portal
+
+`POST /api/sellers/:id/payout-portal-link` creates a fresh, time-limited Whop-hosted portal
+URL for the seller's connected `biz_…` company. Both return and refresh URLs point to the
+canonical local seller page so returning from Whop reloads readiness. Portal URLs are never
+persisted or logged, and link creation never changes onboarding or payout readiness; signed
+webhooks remain authoritative. The take-home keeps its explicit prototype auth scope, but a
+production endpoint must authenticate the caller and verify ownership of the requested seller
+before issuing this privileged temporary URL.
 
 ## 5. Ops dashboard (`/dashboard`)
 

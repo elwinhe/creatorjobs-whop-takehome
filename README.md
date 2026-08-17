@@ -59,7 +59,7 @@ bun run build
 Useful routes:
 
 - `/` — active listings and buyer checkout
-- `/seller` — seller creation, connected-account status, and resumable KYC link
+- `/seller` — seller creation, connected-account status, resumable KYC, and hosted payout-method management
 - `/orders/:id` — polling order status and lifecycle actions
 - `/dashboard` — five local-evidence panels plus account-link regeneration
 - `/api/health` — database ping (`{ ok, db }`)
@@ -78,7 +78,7 @@ listing → local order (price snapshot) → Whop checkout
 support payouts in sandbox, so the live validation stopped at a rejected transfer and did
 not reach `paid_out`.
 
-All outbound Whop SDK operations pass through one gateway and write `api_request_log`, including HTTP status, request ID when supplied, and failure text. Seller links may be regenerated safely. Checkout and transfer calls use stable idempotency keys. `payouts.order_id` is unique, and approval atomically changes the persisted payout from `pending` to `processing` before the network call. Only the request that acquires that database claim may call Whop; simultaneous approvals reuse the same payout but cannot both issue a transfer request.
+All outbound Whop SDK operations pass through one gateway and write `api_request_log`, including HTTP status, request ID when supplied, and failure text. Hosted KYC links may be regenerated safely and are persisted only for onboarding resumption. The separate hosted payout portal uses a fresh `payouts_portal` account link on every request; its temporary URL is returned to the seller but never persisted or logged, and readiness still changes only from signed Whop webhooks. Checkout and transfer calls use stable idempotency keys. `payouts.order_id` is unique, and approval atomically changes the persisted payout from `pending` to `processing` before the network call. Only the request that acquires that database claim may call Whop; simultaneous approvals reuse the same payout but cannot both issue a transfer request.
 
 The transfer path records `completed → payout_pending`, retrieves the created transfer for reconciliation, then records `paid_out`. Whop’s current transfer object has no asynchronous status field and no documented `transfer.*` webhook; a failed create/retrieve is captured as both a failed payout and `payout_failed` order transition.
 
@@ -109,6 +109,7 @@ Seller, checkout, and payout calls preserve the local seller/order/payout record
 Implementation was checked against current official Whop documentation and the installed SDK types:
 
 - [Connected-account enrollment](https://docs.whop.com/developer/platforms/enroll-connected-accounts) — child company plus hosted onboarding link
+- [Hosted payout portal](https://docs.whop.com/developer/platforms/render-payout-portal) — temporary `payouts_portal` account links for payout-method and withdrawal management
 - [Checkout configurations](https://docs.whop.com/api-reference/checkout-configurations/checkout-configuration) — inline one-time plan, inherited metadata, purchase and redirect URLs
 - [Webhooks](https://docs.whop.com/developer/guides/webhooks) — Standard Webhooks signature verification and fast acknowledgement
 - [Manual connected-account payouts](https://docs.whop.com/developer/platforms/manual-payouts) — KYC/payout-method prerequisites and platform balance
