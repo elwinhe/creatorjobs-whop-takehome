@@ -31,6 +31,7 @@ class MemoryRepository implements MarketplaceRepository {
   payoutRows = 0
   payoutStatus = 'pending'
   returnOrder = true
+  returnSeller = true
   savedCheckoutId: string | null = null
   transferId: string | null = null
   webhooks = new Map<string, { id: string; status: string }>()
@@ -56,7 +57,7 @@ class MemoryRepository implements MarketplaceRepository {
     this.sellerState.last_account_link_url = url
     this.sellerState.onboarding_status = 'link_sent'
   }
-  async getSeller() { return this.sellerState }
+  async getSeller() { return this.returnSeller ? this.sellerState : null }
   async listListings(): Promise<ListingView[]> { return [] }
   async createOrder(listingId: string, buyerEmail: string): Promise<OrderDraft | null> {
     this.createdOrder = { buyerEmail, listingId }
@@ -164,7 +165,7 @@ class MemoryRepository implements MarketplaceRepository {
   }
 }
 
-function gateway(options: { failTransfer?: boolean } = {}) {
+function gateway(options: { failAccountLinkUseCase?: 'account_onboarding' | 'payouts_portal'; failTransfer?: boolean } = {}) {
   const rawSecret = 'creatorjobs-test-secret'
   const encodedSecret = Buffer.from(rawSecret).toString('base64')
   const verifier = new Whop({ apiKey: 'test', webhookKey: encodedSecret })
@@ -177,6 +178,7 @@ function gateway(options: { failTransfer?: boolean } = {}) {
   const whop: WhopGateway = {
     async createAccountLink(input) {
       accountLinkInputs.push(input)
+      if (options.failAccountLinkUseCase === input.useCase) throw new Error('Whop payout portal unavailable')
       return { expires_at: new Date().toISOString(), url: `https://whop.test/link/${accountLinkInputs.length}` }
     },
     async createCheckout(input) {
@@ -255,11 +257,27 @@ describe('seller onboarding', () => {
     expect(first.status).toBe(200)
     expect(second.status).toBe(200)
     expect(fake.accountLinkInputs).toEqual([
-      { companyId: 'biz_test_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}` },
-      { companyId: 'biz_test_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}` },
+      { companyId: 'biz_test_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}`, useCase: 'account_onboarding' },
+      { companyId: 'biz_test_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}`, useCase: 'account_onboarding' },
     ])
     expect(repository.accountLinkCalls).toBe(2)
     expect(repository.sellerState.onboarding_status).toBe('link_sent')
+  })
+
+  test('returns a generic 502 without persisting when Whop cannot create an onboarding link', async () => {
+    const repository = new MemoryRepository()
+    const originalState = structuredClone(repository.sellerState)
+    const fake = gateway({ failAccountLinkUseCase: 'account_onboarding' })
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request(`/api/sellers/${sellerId}/account-link`, { method: 'POST' })
+    const body = await response.json() as { error: string }
+
+    expect(response.status).toBe(502)
+    expect(body).toEqual({ error: 'Whop account link creation failed' })
+    expect(body.error).not.toContain('Whop payout portal unavailable')
+    expect(repository.accountLinkCalls).toBe(0)
+    expect(repository.sellerState).toEqual(originalState)
   })
 
   test('advances verified and payout-ready status from signed webhooks', async () => {
@@ -276,6 +294,83 @@ describe('seller onboarding', () => {
     const seller = await (await app.request(`/api/sellers/${sellerId}`)).json() as SellerView
     expect(seller.onboarding_status).toBe('payout_ready')
     expect(seller.has_payout_method).toBe(true)
+  })
+
+  test('creates fresh payout portal links without mutating seller state', async () => {
+    const repository = new MemoryRepository()
+    repository.sellerState = {
+      ...repository.sellerState,
+      has_payout_method: true,
+      last_account_link_url: 'https://whop.test/onboarding/saved',
+      onboarding_status: 'payout_ready',
+    }
+    const originalState = structuredClone(repository.sellerState)
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const first = await app.request(`/api/sellers/${sellerId}/payout-portal-link`, { method: 'POST' })
+    const second = await app.request(`/api/sellers/${sellerId}/payout-portal-link`, { method: 'POST' })
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect((await first.json() as { url: string }).url).toBe('https://whop.test/link/1')
+    expect((await second.json() as { url: string }).url).toBe('https://whop.test/link/2')
+    expect(fake.accountLinkInputs).toEqual([
+      { companyId: 'biz_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}`, useCase: 'payouts_portal' },
+      { companyId: 'biz_seller', refreshUrl: `http://localhost:5173/seller?id=${sellerId}`, returnUrl: `http://localhost:5173/seller?id=${sellerId}`, useCase: 'payouts_portal' },
+    ])
+    expect(repository.accountLinkCalls).toBe(0)
+    expect(repository.sellerState).toEqual(originalState)
+  })
+
+  test('rejects invalid and missing sellers before creating a payout portal link', async () => {
+    const repository = new MemoryRepository()
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const invalid = await app.request('/api/sellers/not-a-uuid/payout-portal-link', { method: 'POST' })
+    repository.returnSeller = false
+    const missing = await app.request(`/api/sellers/${sellerId}/payout-portal-link`, { method: 'POST' })
+
+    expect(invalid.status).toBe(400)
+    expect(missing.status).toBe(404)
+    expect(await missing.json()).toEqual({ error: 'Seller not found' })
+    expect(fake.accountLinkInputs).toHaveLength(0)
+  })
+
+  test('requires a connected company for a payout portal link', async () => {
+    const repository = new MemoryRepository()
+    repository.sellerState.whop_company_id = null
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request(`/api/sellers/${sellerId}/payout-portal-link`, { method: 'POST' })
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'Seller connected account is not ready' })
+    expect(fake.accountLinkInputs).toHaveLength(0)
+  })
+
+  test('returns a generic 502 without mutating seller state when Whop cannot create a payout portal link', async () => {
+    const repository = new MemoryRepository()
+    repository.sellerState = {
+      ...repository.sellerState,
+      has_payout_method: true,
+      last_account_link_url: 'https://whop.test/onboarding/saved',
+      onboarding_status: 'payout_ready',
+    }
+    const originalState = structuredClone(repository.sellerState)
+    const fake = gateway({ failAccountLinkUseCase: 'payouts_portal' })
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request(`/api/sellers/${sellerId}/payout-portal-link`, { method: 'POST' })
+    const body = await response.json() as { error: string }
+
+    expect(response.status).toBe(502)
+    expect(body).toEqual({ error: 'Whop payout portal link creation failed' })
+    expect(body.error).not.toContain('Whop payout portal unavailable')
+    expect(repository.accountLinkCalls).toBe(0)
+    expect(repository.sellerState).toEqual(originalState)
   })
 })
 

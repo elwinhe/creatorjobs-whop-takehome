@@ -98,13 +98,38 @@ export function createMarketplaceApp(dependencies: AppDependencies): Hono {
     if (!seller) return context.json({ error: 'Seller not found' }, 404)
     if (!seller.whop_company_id) return context.json({ error: 'Seller connected account is not ready' }, 409)
     const sellerUrl = `${dependencies.appBaseUrl.replace(/\/$/, '')}/seller?id=${seller.id}`
-    const link = await dependencies.whop.createAccountLink({
-      companyId: seller.whop_company_id,
-      refreshUrl: sellerUrl,
-      returnUrl: sellerUrl,
-    })
+    let link: Awaited<ReturnType<WhopGateway['createAccountLink']>>
+    try {
+      link = await dependencies.whop.createAccountLink({
+        companyId: seller.whop_company_id,
+        refreshUrl: sellerUrl,
+        returnUrl: sellerUrl,
+        useCase: 'account_onboarding',
+      })
+    } catch {
+      return context.json({ error: 'Whop account link creation failed' }, 502)
+    }
     await dependencies.repository.setAccountLink(sellerId, link.url)
     return context.json(link)
+  })
+
+  app.post('/api/sellers/:id/payout-portal-link', async (context) => {
+    const sellerId = idSchema.parse(context.req.param('id'))
+    const seller = await dependencies.repository.getSeller(sellerId)
+    if (!seller) return context.json({ error: 'Seller not found' }, 404)
+    if (!seller.whop_company_id) return context.json({ error: 'Seller connected account is not ready' }, 409)
+    const sellerUrl = `${dependencies.appBaseUrl.replace(/\/$/, '')}/seller?id=${seller.id}`
+    try {
+      const link = await dependencies.whop.createAccountLink({
+        companyId: seller.whop_company_id,
+        refreshUrl: sellerUrl,
+        returnUrl: sellerUrl,
+        useCase: 'payouts_portal',
+      })
+      return context.json(link)
+    } catch {
+      return context.json({ error: 'Whop payout portal link creation failed' }, 502)
+    }
   })
 
   app.get('/api/listings', async (context) => context.json({ listings: await dependencies.repository.listListings() }))

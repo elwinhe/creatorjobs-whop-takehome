@@ -24,6 +24,7 @@ export function SellerScreen() {
   const [displayName, setDisplayName] = useState('Northstar Studio')
   const [email, setEmail] = useState('creator@northstar.test')
   const [busy, setBusy] = useState(false)
+  const [payoutBusy, setPayoutBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async (id: string) => {
@@ -52,6 +53,16 @@ export function SellerScreen() {
       await load(seller.id)
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Account link failed') }
     finally { setBusy(false) }
+  }
+
+  async function payoutPortal() {
+    if (!seller) return
+    setPayoutBusy(true); setError(null)
+    try {
+      const link = await api<{ url: string }>(`/api/sellers/${seller.id}/payout-portal-link`, { method: 'POST' })
+      window.location.assign(link.url)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Payout portal link failed') }
+    finally { setPayoutBusy(false) }
   }
 
   const currentStep = seller ? Math.max(0, steps.indexOf(seller.onboarding_status)) : 0
@@ -87,7 +98,10 @@ export function SellerScreen() {
               return <li className="flex min-h-12 items-center gap-3" key={label}>{complete ? <span className="grid size-7 place-items-center rounded-full bg-primary text-white"><Check className="size-3.5" /></span> : <Circle className="size-7 text-white/20" />}<span className={complete ? 'text-white' : 'text-rail-muted'}>{label}</span></li>
             })}
           </ol>
-          {seller && <Button className="mt-7" disabled={busy || !seller.whop_company_id} onClick={accountLink}>{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>}
+          {seller && <div className="mt-7 flex flex-wrap gap-3">
+            <Button disabled={busy || payoutBusy || !seller.whop_company_id} onClick={accountLink} variant="secondary">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>
+            <Button disabled={busy || payoutBusy || !seller.whop_company_id} onClick={payoutPortal}>{payoutBusy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} {seller.has_payout_method ? 'Manage payouts' : 'Set up payout method'}</Button>
+          </div>}
         </div>
       </Surface>
     </div>

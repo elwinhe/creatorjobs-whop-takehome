@@ -4,6 +4,7 @@ import type { ServerEnv } from './env.ts'
 
 export type WhopCompany = { id: string }
 export type WhopAccountLink = { expires_at: string; url: string }
+export type WhopAccountLinkUseCase = 'account_onboarding' | 'payouts_portal'
 export type WhopCheckout = { id: string; purchase_url: string | null }
 export type WhopTransfer = { id: string }
 
@@ -12,6 +13,7 @@ export interface WhopGateway {
     companyId: string
     refreshUrl: string
     returnUrl: string
+    useCase: WhopAccountLinkUseCase
   }): Promise<WhopAccountLink>
   createCheckout(input: {
     amountCents: number
@@ -115,7 +117,7 @@ export function createWhopGateway(sql: Database, env: ServerEnv): WhopGateway {
           company_id: input.companyId,
           refresh_url: input.refreshUrl,
           return_url: input.returnUrl,
-          use_case: 'account_onboarding',
+          use_case: input.useCase,
         }),
       ),
     createCheckout: async (input) => {
