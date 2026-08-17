@@ -68,7 +68,7 @@ export function MarketplaceScreen() {
           {listings.length === 0 && <Surface className="px-5 py-8 text-sm text-muted-foreground md:col-span-2 xl:col-span-3">No active listings.</Surface>}
           {listings.map((listing, index) => (
             <Surface className="group flex min-h-80 flex-col overflow-hidden p-2" key={listing.id}>
-              <div className="flex flex-1 flex-col rounded-sm bg-background p-5">
+              <div className="flex flex-1 flex-col rounded-sm bg-surface p-5">
                 <div className="flex items-start justify-between gap-4">
                   <span className="grid size-11 place-items-center rounded-md bg-primary-subtle text-primary-hover"><Film className="size-4.5" /></span>
                   <span className="font-mono text-xs text-muted-foreground">0{index + 1}</span>
