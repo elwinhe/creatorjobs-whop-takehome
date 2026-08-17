@@ -69,7 +69,6 @@ export function SellerScreen() {
   return (
     <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
       <section>
-        <Badge tone="accent">Connected account</Badge>
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">Seller onboarding without the black box.</h1>
         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">Create the local seller, provision their Whop company, then resume hosted KYC whenever a link expires.</p>
         {!seller && (
@@ -82,8 +81,8 @@ export function SellerScreen() {
         {error && <p className="mt-5 rounded-md bg-negative-subtle px-4 py-3 text-sm font-medium text-negative shadow-error" role="alert">{error}</p>}
       </section>
 
-      <Surface className="overflow-hidden p-2">
-        <div className="rounded-sm bg-rail p-6 text-white sm:p-8">
+      <Surface className="flex flex-col overflow-hidden p-2">
+        <div className="flex-1 rounded-sm bg-rail p-6 text-white sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><p className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-rail-muted">Readiness record</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{seller?.display_name ?? 'Awaiting seller'}</h2></div>
             <Badge tone={seller?.onboarding_status === 'payout_ready' ? 'success' : 'accent'}>{seller?.onboarding_status ?? 'not started'}</Badge>
