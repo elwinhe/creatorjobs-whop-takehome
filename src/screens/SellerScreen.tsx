@@ -79,18 +79,18 @@ export function SellerScreen() {
             <Button className="mt-2 w-fit" disabled={busy} type="submit">{busy && <LoaderCircle className="size-4 animate-spin" />} Create seller</Button>
           </form>
         )}
-        {error && <p className="mt-5 rounded-md bg-negative-subtle px-4 py-3 text-sm text-negative" role="alert">{error}</p>}
+        {error && <p className="mt-5 rounded-md bg-negative-subtle px-4 py-3 text-sm font-medium text-negative shadow-error" role="alert">{error}</p>}
       </section>
 
       <Surface className="overflow-hidden p-2">
-        <div className="rounded-md bg-rail p-6 text-white sm:p-8">
+        <div className="rounded-sm bg-rail p-6 text-white sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><p className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-rail-muted">Readiness record</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{seller?.display_name ?? 'Awaiting seller'}</h2></div>
             <Badge tone={seller?.onboarding_status === 'payout_ready' ? 'success' : 'accent'}>{seller?.onboarding_status ?? 'not started'}</Badge>
           </div>
           <dl className="mt-7 grid gap-4 border-y border-white/10 py-5 font-mono text-xs sm:grid-cols-2">
-            <div><dt className="text-rail-muted">Local seller</dt><dd className="mt-1 text-white" title={seller?.id}>{shortId(seller?.id)}</dd></div>
-            <div><dt className="text-rail-muted">Whop company</dt><dd className="mt-1 text-white" title={seller?.whop_company_id ?? ''}>{shortId(seller?.whop_company_id)}</dd></div>
+            <div className="min-w-0"><dt className="text-rail-muted">Local seller</dt><dd className="mt-1 break-all text-white" title={seller?.id}>{shortId(seller?.id)}</dd></div>
+            <div className="min-w-0"><dt className="text-rail-muted">Whop company</dt><dd className="mt-1 break-all text-white" title={seller?.whop_company_id ?? ''}>{shortId(seller?.whop_company_id)}</dd></div>
           </dl>
           <ol className="mt-7 space-y-1">
             {['Connected account created', 'Onboarding link opened', 'Identity verified', 'Payout method ready'].map((label, index) => {
@@ -99,8 +99,8 @@ export function SellerScreen() {
             })}
           </ol>
           {seller && <div className="mt-7 flex flex-wrap gap-3">
-            <Button disabled={busy || payoutBusy || !seller.whop_company_id} onClick={accountLink} variant="secondary">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>
-            <Button disabled={busy || payoutBusy || !seller.whop_company_id} onClick={payoutPortal}>{payoutBusy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} {seller.has_payout_method ? 'Manage payouts' : 'Set up payout method'}</Button>
+            <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={accountLink} variant="secondary">{busy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} Start / resume KYC</Button>
+            <Button className="w-full sm:w-auto" disabled={busy || payoutBusy || !seller.whop_company_id} onClick={payoutPortal}>{payoutBusy ? <LoaderCircle className="size-4 animate-spin" /> : <ArrowUpRight className="size-4" />} {seller.has_payout_method ? 'Manage payouts' : 'Set up payout method'}</Button>
           </div>}
         </div>
       </Surface>
