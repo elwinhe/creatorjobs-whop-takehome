@@ -5,12 +5,26 @@ const catchAllUrl = new URL('../api/[...path].ts', import.meta.url)
 const entrypointUrl = new URL('../api/index.ts', import.meta.url)
 
 describe('Vercel routing contracts', () => {
-  test('filesystem functions handle API paths before the SPA fallback', async () => {
+  test('routes exact and nested API paths to the Hono function before the SPA fallback', async () => {
     const config = await Bun.file(configUrl).json() as {
       rewrites: { destination: string; source: string }[]
     }
 
-    expect(config.rewrites).toEqual([{ source: '/:path*', destination: '/index.html' }])
+    expect(config.rewrites).toEqual([
+      { source: '/api', destination: '/api/index' },
+      { source: '/api/:path*', destination: '/api/index' },
+      { source: '/((?!api(?:/|$)).*)', destination: '/index.html' },
+    ])
+
+    const spaFallback = config.rewrites.at(-1)
+    expect(spaFallback?.source).not.toBe('/:path*')
+
+    const spaMatcher = new RegExp(`^${spaFallback?.source}$`)
+    expect(spaMatcher.test('/')).toBe(true)
+    expect(spaMatcher.test('/dashboard')).toBe(true)
+    expect(spaMatcher.test('/apian')).toBe(true)
+    expect(spaMatcher.test('/api')).toBe(false)
+    expect(spaMatcher.test('/api/health')).toBe(false)
     expect(await Bun.file(catchAllUrl).text()).toContain("export { default } from './index.ts'")
   })
 
