@@ -59,7 +59,7 @@ class MemoryRepository implements MarketplaceRepository {
   async setAccountLink(_sellerId: string, url: string) {
     this.accountLinkCalls += 1
     this.sellerState.last_account_link_url = url
-    this.sellerState.onboarding_status = 'link_sent'
+    if (this.sellerState.onboarding_status === 'created') this.sellerState.onboarding_status = 'link_sent'
   }
   async getSeller() { return this.returnSeller ? this.sellerState : null }
   async listListings(): Promise<ListingView[]> { return [] }
@@ -269,6 +269,18 @@ describe('seller onboarding', () => {
     ])
     expect(repository.accountLinkCalls).toBe(2)
     expect(repository.sellerState.onboarding_status).toBe('link_sent')
+  })
+
+  test('minting a new account link never demotes a verified seller', async () => {
+    const repository = new MemoryRepository()
+    repository.sellerState.onboarding_status = 'verified'
+    const fake = gateway()
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request(`/api/sellers/${sellerId}/account-link`, { method: 'POST' })
+    expect(response.status).toBe(200)
+    expect(repository.accountLinkCalls).toBe(1)
+    expect(repository.sellerState.onboarding_status).toBe('verified')
   })
 
   test('returns a generic 502 without persisting when Whop cannot create an onboarding link', async () => {
