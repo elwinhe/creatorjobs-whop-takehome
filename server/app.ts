@@ -98,12 +98,17 @@ export function createMarketplaceApp(dependencies: AppDependencies): Hono {
     if (!seller) return context.json({ error: 'Seller not found' }, 404)
     if (!seller.whop_company_id) return context.json({ error: 'Seller connected account is not ready' }, 409)
     const sellerUrl = `${dependencies.appBaseUrl.replace(/\/$/, '')}/seller?id=${seller.id}`
-    const link = await dependencies.whop.createAccountLink({
-      companyId: seller.whop_company_id,
-      refreshUrl: sellerUrl,
-      returnUrl: sellerUrl,
-      useCase: 'account_onboarding',
-    })
+    let link: Awaited<ReturnType<WhopGateway['createAccountLink']>>
+    try {
+      link = await dependencies.whop.createAccountLink({
+        companyId: seller.whop_company_id,
+        refreshUrl: sellerUrl,
+        returnUrl: sellerUrl,
+        useCase: 'account_onboarding',
+      })
+    } catch {
+      return context.json({ error: 'Whop account link creation failed' }, 502)
+    }
     await dependencies.repository.setAccountLink(sellerId, link.url)
     return context.json(link)
   })
@@ -122,11 +127,8 @@ export function createMarketplaceApp(dependencies: AppDependencies): Hono {
         useCase: 'payouts_portal',
       })
       return context.json(link)
-    } catch (error) {
-      return context.json(
-        { error: error instanceof Error ? error.message : 'Whop payout portal link creation failed' },
-        502,
-      )
+    } catch {
+      return context.json({ error: 'Whop payout portal link creation failed' }, 502)
     }
   })
 

@@ -264,6 +264,22 @@ describe('seller onboarding', () => {
     expect(repository.sellerState.onboarding_status).toBe('link_sent')
   })
 
+  test('returns a generic 502 without persisting when Whop cannot create an onboarding link', async () => {
+    const repository = new MemoryRepository()
+    const originalState = structuredClone(repository.sellerState)
+    const fake = gateway({ failAccountLinkUseCase: 'account_onboarding' })
+    const { app } = testApp(repository, fake.whop)
+
+    const response = await app.request(`/api/sellers/${sellerId}/account-link`, { method: 'POST' })
+    const body = await response.json() as { error: string }
+
+    expect(response.status).toBe(502)
+    expect(body).toEqual({ error: 'Whop account link creation failed' })
+    expect(body.error).not.toContain('Whop payout portal unavailable')
+    expect(repository.accountLinkCalls).toBe(0)
+    expect(repository.sellerState).toEqual(originalState)
+  })
+
   test('advances verified and payout-ready status from signed webhooks', async () => {
     const repository = new MemoryRepository()
     const fake = gateway()
@@ -335,16 +351,26 @@ describe('seller onboarding', () => {
     expect(fake.accountLinkInputs).toHaveLength(0)
   })
 
-  test('returns a useful 502 when Whop cannot create a payout portal link', async () => {
+  test('returns a generic 502 without mutating seller state when Whop cannot create a payout portal link', async () => {
     const repository = new MemoryRepository()
+    repository.sellerState = {
+      ...repository.sellerState,
+      has_payout_method: true,
+      last_account_link_url: 'https://whop.test/onboarding/saved',
+      onboarding_status: 'payout_ready',
+    }
+    const originalState = structuredClone(repository.sellerState)
     const fake = gateway({ failAccountLinkUseCase: 'payouts_portal' })
     const { app } = testApp(repository, fake.whop)
 
     const response = await app.request(`/api/sellers/${sellerId}/payout-portal-link`, { method: 'POST' })
+    const body = await response.json() as { error: string }
 
     expect(response.status).toBe(502)
-    expect(await response.json()).toEqual({ error: 'Whop payout portal unavailable' })
+    expect(body).toEqual({ error: 'Whop payout portal link creation failed' })
+    expect(body.error).not.toContain('Whop payout portal unavailable')
     expect(repository.accountLinkCalls).toBe(0)
+    expect(repository.sellerState).toEqual(originalState)
   })
 })
 

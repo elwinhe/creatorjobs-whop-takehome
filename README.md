@@ -102,7 +102,7 @@ Approval, payout-intent creation, and transfer ownership claim are one transacti
 
 ### Upstream failure
 
-Seller, checkout, and payout calls preserve the local seller/order/payout record when Whop rejects a request. The API returns a useful `502`, `api_request_log` captures the upstream evidence, payout failure stores the reason, and the dashboard can answer whether the failure was local state, a rejected transition, or Whop.
+Seller, checkout, and payout calls preserve the local seller/order/payout record when Whop rejects a request. Hosted-link client responses use stable generic messages, while operational details remain in `api_request_log`. Payout failure stores the reason, and the dashboard can answer whether the failure was local state, a rejected transition, or Whop.
 
 ## Whop API compliance
 
