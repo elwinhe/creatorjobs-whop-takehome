@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Surface } from '../components/ui/Surface'
 import { api, shortId } from '../lib/api'
+import { statusTone } from '../lib/status'
 
 type Seller = {
   display_name: string
@@ -92,7 +93,7 @@ export function SellerScreen() {
         <div className="flex-1 rounded-sm bg-rail p-6 text-white sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div><p className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-rail-muted">Readiness record</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">{seller?.display_name ?? 'Awaiting seller'}</h2></div>
-            <Badge tone={kycComplete ? 'success' : 'accent'}>{seller?.onboarding_status ?? 'not started'}</Badge>
+            <Badge tone={statusTone(seller?.onboarding_status)}>{seller?.onboarding_status ?? 'not started'}</Badge>
           </div>
           <dl className="mt-7 grid gap-4 border-y border-white/10 py-5 font-mono text-xs sm:grid-cols-2">
             <div className="min-w-0"><dt className="text-rail-muted">Local seller</dt><dd className="mt-1 break-all text-white" title={seller?.id}>{shortId(seller?.id)}</dd></div>
