@@ -13,8 +13,18 @@ describe('Vercel routing contracts', () => {
     expect(config.rewrites).toEqual([
       { source: '/api', destination: '/api/index' },
       { source: '/api/:path*', destination: '/api/index' },
-      { source: '/:path*', destination: '/index.html' },
+      { source: '/((?!api(?:/|$)).*)', destination: '/index.html' },
     ])
+
+    const spaFallback = config.rewrites.at(-1)
+    expect(spaFallback?.source).not.toBe('/:path*')
+
+    const spaMatcher = new RegExp(`^${spaFallback?.source}$`)
+    expect(spaMatcher.test('/')).toBe(true)
+    expect(spaMatcher.test('/dashboard')).toBe(true)
+    expect(spaMatcher.test('/apian')).toBe(true)
+    expect(spaMatcher.test('/api')).toBe(false)
+    expect(spaMatcher.test('/api/health')).toBe(false)
     expect(await Bun.file(catchAllUrl).text()).toContain("export { default } from './index.ts'")
   })
 
